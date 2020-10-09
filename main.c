@@ -3,6 +3,7 @@
 #include <getopt.h>
 #include <string.h>
 #include <ctype.h>
+#include <time.h>
 #include "fs/operations.h"
 
 #define MAX_COMMANDS 150000
@@ -31,15 +32,15 @@ char* removeCommand() {
 }
 
 void errorParse(){
-    fprintf(stderr, "Error: command invalid\n");
+    printf("Error: command invalid\n");
     exit(EXIT_FAILURE);
 }
 
-void processInput(){
+void processInput(FILE *inputFile){
     char line[MAX_INPUT_SIZE];
 
     /* break loop with ^Z or ^D */
-    while (fgets(line, sizeof(line)/sizeof(char), stdin)) {
+    while (fgets(line, sizeof(line)/sizeof(char), inputFile)) {
         char token, type;
         char name[MAX_INPUT_SIZE];
 
@@ -92,7 +93,7 @@ void applyCommands(){
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
         if (numTokens < 2) {
-            fprintf(stderr, "Error: invalid command in Queue\n");
+            printf("Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
         }
 
@@ -109,7 +110,7 @@ void applyCommands(){
                         create(name, T_DIRECTORY);
                         break;
                     default:
-                        fprintf(stderr, "Error: invalid node type\n");
+                        printf("Error: invalid node type\n");
                         exit(EXIT_FAILURE);
                 }
                 break;
@@ -125,7 +126,7 @@ void applyCommands(){
                 delete(name);
                 break;
             default: { /* error */
-                fprintf(stderr, "Error: command to apply\n");
+                printf("Error: command to apply\n");
                 exit(EXIT_FAILURE);
             }
         }
@@ -133,13 +134,28 @@ void applyCommands(){
 }
 
 int main(int argc, char* argv[]) {
+    clock_t startTime, endTime; 
+    double executionTime;
+    FILE *inputFile, *outputFile;
+    
+    
     /* init filesystem */
     init_fs();
 
     /* process input and print tree */
-    processInput();
+    inputFile = fopen(argv[1], "r");
+    processInput(inputFile);
+    fclose(inputFile);
+    
+    startTime = clock();
     applyCommands();
-    print_tecnicofs_tree(stdout);
+    endTime = clock();
+    executionTime = (double) (endTime - startTime) / CLOCKS_PER_SEC;
+    printf("TecnicoFS completed in %.4f seconds.\n", executionTime);
+
+    outputFile = fopen(argv[2], "w");
+    print_tecnicofs_tree(outputFile);
+    fclose(outputFile);
 
     /* release allocated memory */
     destroy_fs();
