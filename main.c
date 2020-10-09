@@ -155,11 +155,11 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (strcmp(argv[4], "mutex")) {
+    if (!strcmp(argv[4], "mutex")) {
         syncStrategy = MUTEX;
-    } else if (strcmp(argv[4], "rwlock")) {
+    } else if (!strcmp(argv[4], "rwlock")) {
         syncStrategy = RWLOCK;
-    } else if (strcmp(argv[4], "nosync")) {
+    } else if (!strcmp(argv[4], "nosync")) {
         syncStrategy = NOSYNC;
     } else {
         printf("Wrong sync method go BRRRRRRR\n");
