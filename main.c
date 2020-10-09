@@ -3,11 +3,15 @@
 #include <getopt.h>
 #include <string.h>
 #include <ctype.h>
-#include <time.h>
-#include "fs/operations.h"
+#include <sys/time.h>
+#include <pthread.h>
+#include "fs/operations.h" 
 
 #define MAX_COMMANDS 150000
 #define MAX_INPUT_SIZE 100
+
+enum { MUTEX, RWLOCK, NOSYNC } syncStrategy;
+pthread_mutex_t mutex;
 
 int numberThreads = 0;
 
@@ -82,9 +86,12 @@ void processInput(FILE *inputFile){
     }
 }
 
-void applyCommands(){
-    while (numberCommands > 0){
+void applyCommands() {
+    while (numberCommands > 0) {
+        pthread_mutex_lock(&mutex);
         const char* command = removeCommand();
+        pthread_mutex_unlock(&mutex);
+        
         if (command == NULL){
             continue;
         }
@@ -133,27 +140,80 @@ void applyCommands(){
     }
 }
 
+void *threadFunction(void *arg) {
+    applyCommands();
+
+    return NULL;
+}
+
 int main(int argc, char* argv[]) {
-    clock_t startTime, endTime; 
-    double executionTime;
+    struct timeval tv1, tv2;
     FILE *inputFile, *outputFile;
     
+    if (argc != 5) {
+        printf("Wrong no of Arguments go BRRRRRRR\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (strcmp(argv[4], "mutex")) {
+        syncStrategy = MUTEX;
+    } else if (strcmp(argv[4], "rwlock")) {
+        syncStrategy = RWLOCK;
+    } else if (strcmp(argv[4], "nosync")) {
+        syncStrategy = NOSYNC;
+    } else {
+        printf("Wrong sync method go BRRRRRRR\n");
+        exit(EXIT_FAILURE);
+    }
+
+    pthread_mutex_init(&mutex, NULL);
     
     /* init filesystem */
     init_fs();
 
-    /* process input and print tree */
+    /* open input file */
     inputFile = fopen(argv[1], "r");
+    if (!inputFile) {
+        printf("Error: could not open input file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* process input */
     processInput(inputFile);
     fclose(inputFile);
+
+    /* create tasks pool */
+    numberThreads = atoi(argv[3]);
+    pthread_t tid[numberThreads];
     
-    startTime = clock();
-    applyCommands();
-    endTime = clock();
-    executionTime = (double) (endTime - startTime) / CLOCKS_PER_SEC;
-    printf("TecnicoFS completed in %.4f seconds.\n", executionTime);
+    gettimeofday(&tv1, NULL);
+
+    for(int i = 0; i < numberThreads; i++) {
+        if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
+            printf("Error: could not create thread\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    for (int i = 0; i < numberThreads; i++) {
+        if (pthread_join(tid[i], NULL)) {
+            printf("Error: error waiting for thread\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    gettimeofday(&tv2, NULL);
+    printf("TecnicoFS completed in %.4f seconds\n", 
+        (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
+        (double) (tv2.tv_sec - tv1.tv_sec));
 
     outputFile = fopen(argv[2], "w");
+    if (!outputFile) {
+        printf("Error: could not open output file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* print tree */
     print_tecnicofs_tree(outputFile);
     fclose(outputFile);
 
