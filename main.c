@@ -12,6 +12,7 @@
 
 enum { MUTEX, RWLOCK, NOSYNC } syncStrategy;
 pthread_mutex_t mutex;
+pthread_rwlock_t rwlock;
 
 int numberThreads = 0;
 
@@ -99,6 +100,7 @@ void applyCommands() {
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+    
         if (numTokens < 2) {
             printf("Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
@@ -109,28 +111,71 @@ void applyCommands() {
             case 'c':
                 switch (type) {
                     case 'f':
+                        if (syncStrategy == MUTEX) 
+                            pthread_mutex_lock(&mutex);
+                        else if (syncStrategy == RWLOCK)
+                            pthread_rwlock_wrlock(&rwlock);
+
                         printf("Create file: %s\n", name);
                         create(name, T_FILE);
+
+                        if (syncStrategy == MUTEX) 
+                            pthread_mutex_unlock(&mutex);
+                        else if (syncStrategy == RWLOCK)
+                            pthread_rwlock_unlock(&rwlock);
                         break;
                     case 'd':
+                        if (syncStrategy == MUTEX) 
+                            pthread_mutex_lock(&mutex);
+                        else if (syncStrategy == RWLOCK)
+                            pthread_rwlock_wrlock(&rwlock);
+
                         printf("Create directory: %s\n", name);
                         create(name, T_DIRECTORY);
+
+                        if (syncStrategy == MUTEX) 
+                            pthread_mutex_unlock(&mutex);
+                        else if (syncStrategy == RWLOCK)
+                            pthread_rwlock_unlock(&rwlock);
                         break;
                     default:
                         printf("Error: invalid node type\n");
                         exit(EXIT_FAILURE);
                 }
+
                 break;
             case 'l': 
+                if (syncStrategy == MUTEX) 
+                    pthread_mutex_lock(&mutex);
+                else if (syncStrategy == RWLOCK)
+                    pthread_rwlock_rdlock(&rwlock);
+
+
                 searchResult = lookup(name);
                 if (searchResult >= 0)
                     printf("Search: %s found\n", name);
                 else
                     printf("Search: %s not found\n", name);
+                
+                if (syncStrategy == MUTEX) 
+                    pthread_mutex_unlock(&mutex);
+                else if (syncStrategy == RWLOCK)
+                    pthread_rwlock_unlock(&rwlock);
                 break;
+
             case 'd':
+                if (syncStrategy == MUTEX) 
+                    pthread_mutex_lock(&mutex);
+                else if (syncStrategy == RWLOCK)
+                    pthread_rwlock_wrlock(&rwlock);
+                
                 printf("Delete: %s\n", name);
                 delete(name);
+
+                if (syncStrategy == MUTEX) 
+                    pthread_mutex_unlock(&mutex);
+                else if (syncStrategy == RWLOCK)
+                    pthread_rwlock_unlock(&rwlock);
                 break;
             default: { /* error */
                 printf("Error: command to apply\n");
@@ -166,7 +211,10 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    pthread_mutex_init(&mutex, NULL);
+    if (pthread_mutex_init(&mutex, NULL)) {
+        printf("Mutex no working go BRRRRRRR\n");
+        exit(EXIT_FAILURE);
+    }
     
     /* init filesystem */
     init_fs();
