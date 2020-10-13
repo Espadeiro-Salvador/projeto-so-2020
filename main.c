@@ -66,13 +66,13 @@ char* removeCommand() {
 
     if (numberCommands > 0) {
         numberCommands--;
-        headQueue++;
+        int head = headQueue++;
 
         if (syncStrategy != NOSYNC) {
             pthread_mutex_unlock(&mutex);
         }
 
-        return inputCommands[headQueue];  
+        return inputCommands[head];
     }
 
     if (syncStrategy != NOSYNC) {
@@ -82,12 +82,12 @@ char* removeCommand() {
     return NULL;
 }
 
-void errorParse(){
+void errorParse() {
     printf("Error: command invalid\n");
     exit(EXIT_FAILURE);
 }
 
-void processInput(FILE *inputFile){
+void processInput(FILE *inputFile) {
     char line[MAX_INPUT_SIZE];
 
     /* break loop with ^Z or ^D */
@@ -144,7 +144,7 @@ void applyCommands() {
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
-    
+        
         if (numTokens < 2) {
             printf("Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);

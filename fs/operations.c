@@ -1,4 +1,4 @@
-#include "locks.h"
+#include "../locks.h"
 #include "operations.h"
 #include <stdlib.h>
 #include <stdio.h>
