@@ -1,3 +1,4 @@
+#include "locks.h"
 #include "operations.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -123,6 +124,9 @@ int create(char *name, type nodeType){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
+	
+	/* TRANCAR - MUTEX - ESCREVER */
+	lockWriteFS();
 
 	parent_inumber = lookup(parent_name);
 
@@ -145,7 +149,7 @@ int create(char *name, type nodeType){
 		       child_name, parent_name);
 		return FAIL;
 	}
-
+	
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
 	if (child_inumber == FAIL) {
@@ -159,6 +163,9 @@ int create(char *name, type nodeType){
 		       child_name, parent_name);
 		return FAIL;
 	}
+
+	/* DESTRANCAR */
+	unlockFS();
 
 	return SUCCESS;
 }
@@ -180,6 +187,9 @@ int delete(char *name){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
+
+	/* TRANCAR - MUTEX - ESCREVER */
+	lockWriteFS();
 
 	parent_inumber = lookup(parent_name);
 
@@ -226,6 +236,9 @@ int delete(char *name){
 		return FAIL;
 	}
 
+	/* DESTRANCAR */
+	unlockFS();
+
 	return SUCCESS;
 }
 
@@ -251,6 +264,8 @@ int lookup(char *name) {
 	type nType;
 	union Data data;
 
+	//TRANCAR - MUTEX - LEITURA
+
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
 
@@ -261,6 +276,8 @@ int lookup(char *name) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
 	}
+
+	// DESTRANCAR
 
 	return current_inumber;
 }

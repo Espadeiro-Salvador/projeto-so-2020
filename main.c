@@ -20,6 +20,37 @@ char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
 int headQueue = 0;
 
+void checkError(int error, const char *msg) {
+    if (error) {
+        printf("Error: %s.\n", msg);
+        exit(EXIT_FAILURE);
+    }
+}
+
+void lockWriteFS() {
+    if (syncStrategy == MUTEX) {
+        checkError(pthread_mutex_lock(&mutex), "Mutex failed to lock");
+    } else if (syncStrategy == RWLOCK) {
+        pthread_rwlock_wrlock(&rwlock);
+    }
+}
+
+void lockReadFS() {
+    if (syncStrategy == MUTEX) {
+        pthread_mutex_lock(&mutex);
+    } else if (syncStrategy == RWLOCK) {
+        pthread_rwlock_rdlock(&rwlock);
+    }
+}
+
+void unlockFS() {
+    if (syncStrategy == MUTEX) {
+        pthread_mutex_unlock(&mutex);
+    } else if (syncStrategy == RWLOCK) {
+        pthread_rwlock_unlock(&rwlock);
+    }
+}
+
 int insertCommand(char* data) {
     if(numberCommands != MAX_COMMANDS) {
         strcpy(inputCommands[numberCommands++], data);
@@ -29,10 +60,25 @@ int insertCommand(char* data) {
 }
 
 char* removeCommand() {
-    if(numberCommands > 0){
-        numberCommands--;
-        return inputCommands[headQueue++];  
+    if (syncStrategy != NOSYNC) {
+        pthread_mutex_lock(&mutex);
     }
+
+    if (numberCommands > 0) {
+        numberCommands--;
+        headQueue++;
+
+        if (syncStrategy != NOSYNC) {
+            pthread_mutex_unlock(&mutex);
+        }
+
+        return inputCommands[headQueue];  
+    }
+
+    if (syncStrategy != NOSYNC) {
+        pthread_mutex_unlock(&mutex);
+    }
+
     return NULL;
 }
 
@@ -89,9 +135,7 @@ void processInput(FILE *inputFile){
 
 void applyCommands() {
     while (numberCommands > 0) {
-        pthread_mutex_lock(&mutex);
         const char* command = removeCommand();
-        pthread_mutex_unlock(&mutex);
         
         if (command == NULL){
             continue;
@@ -111,33 +155,13 @@ void applyCommands() {
             case 'c':
                 switch (type) {
                     case 'f':
-                        if (syncStrategy == MUTEX) 
-                            pthread_mutex_lock(&mutex);
-                        else if (syncStrategy == RWLOCK)
-                            pthread_rwlock_wrlock(&rwlock);
-
                         printf("Create file: %s\n", name);
                         create(name, T_FILE);
-
-                        if (syncStrategy == MUTEX) 
-                            pthread_mutex_unlock(&mutex);
-                        else if (syncStrategy == RWLOCK)
-                            pthread_rwlock_unlock(&rwlock);
                         break;
                     case 'd':
-                        if (syncStrategy == MUTEX) 
-                            pthread_mutex_lock(&mutex);
-                        else if (syncStrategy == RWLOCK)
-                            pthread_rwlock_wrlock(&rwlock);
-
                         printf("Create directory: %s\n", name);
                         create(name, T_DIRECTORY);
-
-                        if (syncStrategy == MUTEX) 
-                            pthread_mutex_unlock(&mutex);
-                        else if (syncStrategy == RWLOCK)
-                            pthread_rwlock_unlock(&rwlock);
-                        break;
+                            break;
                     default:
                         printf("Error: invalid node type\n");
                         exit(EXIT_FAILURE);
@@ -145,37 +169,19 @@ void applyCommands() {
 
                 break;
             case 'l': 
-                if (syncStrategy == MUTEX) 
-                    pthread_mutex_lock(&mutex);
-                else if (syncStrategy == RWLOCK)
-                    pthread_rwlock_rdlock(&rwlock);
-
-
+                lockReadFS();
                 searchResult = lookup(name);
+                unlockFS();
+
                 if (searchResult >= 0)
                     printf("Search: %s found\n", name);
                 else
                     printf("Search: %s not found\n", name);
-                
-                if (syncStrategy == MUTEX) 
-                    pthread_mutex_unlock(&mutex);
-                else if (syncStrategy == RWLOCK)
-                    pthread_rwlock_unlock(&rwlock);
                 break;
 
             case 'd':
-                if (syncStrategy == MUTEX) 
-                    pthread_mutex_lock(&mutex);
-                else if (syncStrategy == RWLOCK)
-                    pthread_rwlock_wrlock(&rwlock);
-                
                 printf("Delete: %s\n", name);
                 delete(name);
-
-                if (syncStrategy == MUTEX) 
-                    pthread_mutex_unlock(&mutex);
-                else if (syncStrategy == RWLOCK)
-                    pthread_rwlock_unlock(&rwlock);
                 break;
             default: { /* error */
                 printf("Error: command to apply\n");
@@ -195,25 +201,22 @@ int main(int argc, char* argv[]) {
     struct timeval tv1, tv2;
     FILE *inputFile, *outputFile;
     
-    if (argc != 5) {
-        printf("Wrong no of Arguments go BRRRRRRR\n");
-        exit(EXIT_FAILURE);
-    }
+    checkError(argc != 5, "wrong number of arguments");
 
     if (!strcmp(argv[4], "mutex")) {
         syncStrategy = MUTEX;
     } else if (!strcmp(argv[4], "rwlock")) {
+        checkError(pthread_rwlock_init(&rwlock, NULL), "RWLock failed to initialize");
         syncStrategy = RWLOCK;
     } else if (!strcmp(argv[4], "nosync")) {
         syncStrategy = NOSYNC;
     } else {
-        printf("Wrong sync method go BRRRRRRR\n");
+        printf("Error: Invalid sync strategy.\n");
         exit(EXIT_FAILURE);
     }
 
-    if (pthread_mutex_init(&mutex, NULL)) {
-        printf("Mutex no working go BRRRRRRR\n");
-        exit(EXIT_FAILURE);
+    if (syncStrategy != NOSYNC) {
+        checkError(pthread_mutex_init(&mutex, NULL), "Mutex failed to initialize");
     }
     
     /* init filesystem */
@@ -221,10 +224,7 @@ int main(int argc, char* argv[]) {
 
     /* open input file */
     inputFile = fopen(argv[1], "r");
-    if (!inputFile) {
-        printf("Error: could not open input file\n");
-        exit(EXIT_FAILURE);
-    }
+    checkError(!inputFile, "could not open input file");
 
     /* process input */
     processInput(inputFile);
