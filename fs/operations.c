@@ -124,10 +124,10 @@ int create(char *name, type nodeType){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
-	
+
 	/* TRANCAR - MUTEX - ESCREVER */
 	lockWriteFS();
-
+	
 	parent_inumber = lookup(parent_name, NOLOCK);
 
 	if (parent_inumber == FAIL) {
@@ -139,7 +139,7 @@ int create(char *name, type nodeType){
 
 	inode_get(parent_inumber, &pType, &pdata);
 
-	if(pType != T_DIRECTORY) {
+	if (pType != T_DIRECTORY) {
 		unlockFS();
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
@@ -171,7 +171,6 @@ int create(char *name, type nodeType){
 
 	/* DESTRANCAR */
 	unlockFS();
-
 	return SUCCESS;
 }
 
@@ -276,8 +275,9 @@ int lookup(char *name, int lock) {
 	union Data data;
 
 	//TRANCAR - MUTEX - LEITURA
-	if (lock == LOCK)
-		lockReadFS();
+	if (lock == LOCK) {
+		lockReadFS();	printf("bruh\n");
+	}
 
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
@@ -291,8 +291,9 @@ int lookup(char *name, int lock) {
 	}
 
 	// DESTRANCAR
-	if (lock == LOCK)
+	if (lock == LOCK) {
 		unlockFS();
+	}
 
 	return current_inumber;
 }

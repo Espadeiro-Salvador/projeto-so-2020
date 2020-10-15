@@ -71,18 +71,21 @@ int insertCommand(char* data) {
 }
 
 char* removeCommand() {
-    if (pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
+    if (syncStrategy != NOSYNC) {
+        if (pthread_mutex_lock(&mutex)) {
+            printf("Error: Mutex failed to lock\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (numberCommands > 0) {
+
         numberCommands--;
         int head = headQueue++;
 
         if (syncStrategy != NOSYNC) {
-            if (pthread_rwlock_unlock(&rwlock)) {
-                printf("Error: RWLock failed to unlock\n");
+            if (pthread_mutex_unlock(&mutex)) {
+                printf("Error: Mutex failed to unlock\n");
                 exit(EXIT_FAILURE);
             }
         }
@@ -91,8 +94,8 @@ char* removeCommand() {
     }
 
     if (syncStrategy != NOSYNC) {
-        if (pthread_rwlock_unlock(&rwlock)) {
-            printf("Error: RWLock failed to unlock\n");
+        if (pthread_mutex_unlock(&mutex)) {
+            printf("Error: Mutex failed to unlock\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -184,7 +187,6 @@ void applyCommands() {
                         printf("Error: invalid node type\n");
                         exit(EXIT_FAILURE);
                 }
-
                 break;
             case 'l': 
                 searchResult = lookup(name, LOCK);
@@ -308,15 +310,19 @@ int main(int argc, char* argv[]) {
 
     /* release allocated memory */
     destroy_fs();
-    if (pthread_mutex_destroy(&mutex)) {
-        printf("Error: could not destroy the mutex\n");
-        exit(EXIT_FAILURE);
-    }
+    if (syncStrategy != NOSYNC) {
+        if (pthread_mutex_destroy(&mutex)) {
+            printf("Error: could not destroy the mutex\n");
+            exit(EXIT_FAILURE);
+        }
 
-    if (pthread_rwlock_destroy(&rwlock)) {
-        printf("Error: could not destroy the rwlock\n");
-        exit(EXIT_FAILURE);
-    }
+        if (syncStrategy == RWLOCK) {
+            if (pthread_rwlock_destroy(&rwlock)) {
+                printf("Error: could not destroy the rwlock\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }    
 
     exit(EXIT_SUCCESS);
 }
