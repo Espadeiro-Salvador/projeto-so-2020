@@ -276,7 +276,7 @@ int lookup(char *name, int lock) {
 
 	//TRANCAR - MUTEX - LEITURA
 	if (lock == LOCK) {
-		lockReadFS();	printf("bruh\n");
+		lockReadFS();
 	}
 
 	/* get root inode data */
