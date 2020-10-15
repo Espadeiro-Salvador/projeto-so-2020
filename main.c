@@ -20,34 +20,45 @@ char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
 int headQueue = 0;
 
-void checkError(int error, const char *msg) {
-    if (error) {
-        printf("Error: %s.\n", msg);
-        exit(EXIT_FAILURE);
-    }
-}
-
 void lockWriteFS() {
     if (syncStrategy == MUTEX) {
-        checkError(pthread_mutex_lock(&mutex), "Mutex failed to lock");
+        if (pthread_mutex_lock(&mutex)) {
+            printf("Error: Mutex failed to lock\n");
+            exit(EXIT_FAILURE);
+        }
     } else if (syncStrategy == RWLOCK) {
-        pthread_rwlock_wrlock(&rwlock);
+        if (pthread_rwlock_wrlock(&rwlock)) {
+            printf("Error: RWLock failed to lock\n");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
 void lockReadFS() {
     if (syncStrategy == MUTEX) {
-        pthread_mutex_lock(&mutex);
+        if (pthread_mutex_lock(&mutex)) {
+            printf("Error: Mutex failed to lock\n");
+            exit(EXIT_FAILURE);
+        }
     } else if (syncStrategy == RWLOCK) {
-        pthread_rwlock_rdlock(&rwlock);
+        if (pthread_rwlock_rdlock(&rwlock)) {
+            printf("Error: RWLock failed to lock\n");
+            exit(EXIT_FAILURE);   
+        }
     }
 }
 
 void unlockFS() {
     if (syncStrategy == MUTEX) {
-        pthread_mutex_unlock(&mutex);
+        if (pthread_mutex_unlock(&mutex)) {
+            printf("Error: Mutex failed to unlock\n");
+            exit(EXIT_FAILURE);
+        }
     } else if (syncStrategy == RWLOCK) {
-        pthread_rwlock_unlock(&rwlock);
+        if (pthread_rwlock_unlock(&rwlock)) {
+            printf("Error: RWLock failed to unlock\n");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -60,8 +71,9 @@ int insertCommand(char* data) {
 }
 
 char* removeCommand() {
-    if (syncStrategy != NOSYNC) {
-        pthread_mutex_lock(&mutex);
+    if (pthread_mutex_lock(&mutex)) {
+        printf("Error: Mutex failed to lock\n");
+        exit(EXIT_FAILURE);
     }
 
     if (numberCommands > 0) {
@@ -69,14 +81,20 @@ char* removeCommand() {
         int head = headQueue++;
 
         if (syncStrategy != NOSYNC) {
-            pthread_mutex_unlock(&mutex);
+            if (pthread_rwlock_unlock(&rwlock)) {
+                printf("Error: RWLock failed to unlock\n");
+                exit(EXIT_FAILURE);
+            }
         }
 
         return inputCommands[head];
     }
 
     if (syncStrategy != NOSYNC) {
-        pthread_mutex_unlock(&mutex);
+        if (pthread_rwlock_unlock(&rwlock)) {
+            printf("Error: RWLock failed to unlock\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     return NULL;
@@ -161,7 +179,7 @@ void applyCommands() {
                     case 'd':
                         printf("Create directory: %s\n", name);
                         create(name, T_DIRECTORY);
-                            break;
+                        break;
                     default:
                         printf("Error: invalid node type\n");
                         exit(EXIT_FAILURE);
@@ -169,9 +187,7 @@ void applyCommands() {
 
                 break;
             case 'l': 
-                lockReadFS();
-                searchResult = lookup(name);
-                unlockFS();
+                searchResult = lookup(name, LOCK);
 
                 if (searchResult >= 0)
                     printf("Search: %s found\n", name);
@@ -201,22 +217,31 @@ int main(int argc, char* argv[]) {
     struct timeval tv1, tv2;
     FILE *inputFile, *outputFile;
     
-    checkError(argc != 5, "wrong number of arguments");
+    if (argc != 5) {
+        printf("Error: wrong number of arguments\n");
+        exit(EXIT_FAILURE);
+    }
 
     if (!strcmp(argv[4], "mutex")) {
         syncStrategy = MUTEX;
     } else if (!strcmp(argv[4], "rwlock")) {
-        checkError(pthread_rwlock_init(&rwlock, NULL), "RWLock failed to initialize");
+        if (pthread_rwlock_init(&rwlock, NULL)) {
+            printf("Error: RWLock failed to initialize\n");
+            exit(EXIT_FAILURE);
+        }
         syncStrategy = RWLOCK;
     } else if (!strcmp(argv[4], "nosync")) {
         syncStrategy = NOSYNC;
     } else {
-        printf("Error: Invalid sync strategy.\n");
+        printf("Error: Invalid sync strategy\n");
         exit(EXIT_FAILURE);
     }
 
     if (syncStrategy != NOSYNC) {
-        checkError(pthread_mutex_init(&mutex, NULL), "Mutex failed to initialize");
+        if (pthread_mutex_init(&mutex, NULL)) {
+            printf("Error: Mutex failed to initialize\n");
+            exit(EXIT_FAILURE);
+        }
     }
     
     /* init filesystem */
@@ -224,17 +249,26 @@ int main(int argc, char* argv[]) {
 
     /* open input file */
     inputFile = fopen(argv[1], "r");
-    checkError(!inputFile, "could not open input file");
+    if (!inputFile) {
+        printf("Error: could not open the input file\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* process input */
     processInput(inputFile);
-    fclose(inputFile);
+    if (fclose(inputFile)) {
+        printf("Error: could not close the input file\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* create tasks pool */
     numberThreads = atoi(argv[3]);
     pthread_t tid[numberThreads];
     
-    gettimeofday(&tv1, NULL);
+    if (gettimeofday(&tv1, NULL) == -1) {
+        printf("Error: could not get the time\n");
+        exit(EXIT_FAILURE);
+    }
 
     for(int i = 0; i < numberThreads; i++) {
         if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
@@ -250,7 +284,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    gettimeofday(&tv2, NULL);
+    if (gettimeofday(&tv2, NULL) == -1) {
+        printf("Error: could not get the time\n");
+        exit(EXIT_FAILURE);
+    }
+
     printf("TecnicoFS completed in %.4f seconds\n", 
         (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
         (double) (tv2.tv_sec - tv1.tv_sec));
@@ -263,7 +301,10 @@ int main(int argc, char* argv[]) {
 
     /* print tree */
     print_tecnicofs_tree(outputFile);
-    fclose(outputFile);
+    if (fclose(outputFile)) {
+        printf("Error: could not close the output file\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* release allocated memory */
     destroy_fs();

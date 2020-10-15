@@ -128,7 +128,7 @@ int create(char *name, type nodeType){
 	/* TRANCAR - MUTEX - ESCREVER */
 	lockWriteFS();
 
-	parent_inumber = lookup(parent_name);
+	parent_inumber = lookup(parent_name, NOLOCK);
 
 	if (parent_inumber == FAIL) {
 		unlockFS();
@@ -195,7 +195,7 @@ int delete(char *name){
 	/* TRANCAR - MUTEX - ESCREVER */
 	lockWriteFS();
 
-	parent_inumber = lookup(parent_name);
+	parent_inumber = lookup(parent_name, NOLOCK);
 
 	if (parent_inumber == FAIL) {
 		unlockFS();
@@ -257,11 +257,12 @@ int delete(char *name){
  * Lookup for a given path.
  * Input:
  *  - name: path of node
+ *  - lock: should a lock be used, LOCK (1) to lock or anything if not
  * Returns:
  *  inumber: identifier of the i-node, if found
  *     FAIL: otherwise
  */
-int lookup(char *name) {
+int lookup(char *name, int lock) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 
@@ -275,6 +276,8 @@ int lookup(char *name) {
 	union Data data;
 
 	//TRANCAR - MUTEX - LEITURA
+	if (lock == LOCK)
+		lockReadFS();
 
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
@@ -288,6 +291,8 @@ int lookup(char *name) {
 	}
 
 	// DESTRANCAR
+	if (lock == LOCK)
+		unlockFS();
 
 	return current_inumber;
 }
