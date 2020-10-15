@@ -125,7 +125,6 @@ int create(char *name, type nodeType){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	/* TRANCAR - MUTEX - ESCREVER */
 	lockWriteFS();
 	
 	parent_inumber = lookup(parent_name, NOLOCK);
@@ -169,7 +168,6 @@ int create(char *name, type nodeType){
 		return FAIL;
 	}
 
-	/* DESTRANCAR */
 	unlockFS();
 	return SUCCESS;
 }
@@ -191,7 +189,6 @@ int delete(char *name){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	/* TRANCAR - MUTEX - ESCREVER */
 	lockWriteFS();
 
 	parent_inumber = lookup(parent_name, NOLOCK);
@@ -245,9 +242,7 @@ int delete(char *name){
 		return FAIL;
 	}
 
-	/* DESTRANCAR */
 	unlockFS();
-
 	return SUCCESS;
 }
 
@@ -274,7 +269,6 @@ int lookup(char *name, int lock) {
 	type nType;
 	union Data data;
 
-	//TRANCAR - MUTEX - LEITURA
 	if (lock == LOCK) {
 		lockReadFS();
 	}
@@ -290,7 +284,6 @@ int lookup(char *name, int lock) {
 		path = strtok(NULL, delim);
 	}
 
-	// DESTRANCAR
 	if (lock == LOCK) {
 		unlockFS();
 	}
