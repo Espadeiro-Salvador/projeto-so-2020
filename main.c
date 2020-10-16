@@ -20,7 +20,7 @@ char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
 int headQueue = 0;
 
-/* Locks using mutex or wrlock. */
+/* Locks using mutex or wrlock if using a sync strategy. */
 void lockWriteFS() {
     if (syncStrategy == MUTEX && pthread_mutex_lock(&mutex)) {
         printf("Error: Mutex failed to lock\n");
@@ -31,7 +31,7 @@ void lockWriteFS() {
     }
 }
 
-/* Locks using mutex or rdlock. */
+/* Locks using mutex or rdlock if using a sync strategy. */
 void lockReadFS() {
     if (syncStrategy == MUTEX && pthread_mutex_lock(&mutex)) {
         printf("Error: Mutex failed to lock\n");
@@ -42,13 +42,29 @@ void lockReadFS() {
     }
 }
 
-/* Unlocks the mutex or the rwlock. */
+/* Unlocks the mutex or the rwlock if using a sync strategy. */
 void unlockFS() {
     if (syncStrategy == MUTEX && pthread_mutex_unlock(&mutex)) {
         printf("Error: Mutex failed to unlock\n");
         exit(EXIT_FAILURE);
     } else if (syncStrategy == RWLOCK && pthread_rwlock_unlock(&rwlock)) {
         printf("Error: RWLock failed to unlock\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+/* Locks the mutex if using a  */
+void lockCommandArray() {
+    if (syncStrategy != NOSYNC && pthread_mutex_lock(&mutex)) {
+        printf("Error: Mutex failed to lock\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+/* Unlocks the mutex if using a sync strategy. */
+void unlockCommandArray() {
+    if (syncStrategy != NOSYNC && pthread_mutex_unlock(&mutex)) {
+        printf("Error: Mutex failed to unlock\n");
         exit(EXIT_FAILURE);
     }
 }
@@ -62,30 +78,8 @@ int insertCommand(char* data) {
 }
 
 char* removeCommand() {
-    if (syncStrategy != NOSYNC && pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (numberCommands > 0) {
-
-        numberCommands--;
-        int head = headQueue++;
-
-        if (syncStrategy != NOSYNC && pthread_mutex_unlock(&mutex)) {
-            printf("Error: Mutex failed to unlock\n");
-            exit(EXIT_FAILURE);
-        }
-
-        return inputCommands[head];
-    }
-
-    if (syncStrategy != NOSYNC && pthread_mutex_unlock(&mutex)) {
-        printf("Error: Mutex failed to unlock\n");
-        exit(EXIT_FAILURE);
-    }
-
-    return NULL;
+    numberCommands--;
+    return inputCommands[headQueue++];
 }
 
 void errorParse() {
@@ -140,10 +134,18 @@ void processInput(FILE *inputFile) {
 }
 
 void applyCommands() {
-    while (numberCommands > 0) {
+    while (1) {
+        lockCommandArray();
+
+        if (numberCommands <= 0) {
+            unlockCommandArray();
+            break;
+        }
+
         const char* command = removeCommand();
+        unlockCommandArray();
         
-        if (command == NULL){
+        if (command == NULL) {
             continue;
         }
 
@@ -250,6 +252,18 @@ int main(int argc, char* argv[]) {
     }
 
     numberThreads = atoi(argv[3]);
+
+    if (numberThreads < 1) {
+        printf("Error: can't run less than one thread\n");
+        exit(EXIT_FAILURE);
+    } else if (syncStrategy == NOSYNC && numberThreads != 1) {
+        printf("Error: can only run one thread with no sync\n");
+        exit(EXIT_FAILURE);
+    } else if (syncStrategy != NOSYNC && numberThreads == 1) {
+        printf("Error: can only use sync strategy with more than one thread\n");
+        exit(EXIT_FAILURE);
+    }
+
     pthread_t tid[numberThreads];
     
     /* get initial time */
