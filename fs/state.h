@@ -3,7 +3,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include "../tecnicofs-api-constants.h"
+#include "../lockstack.h"
 
 /* FS root inode number */
 #define FS_ROOT 0
@@ -40,7 +42,7 @@ union Data {
 typedef struct inode_t {    
 	type nodeType;
 	union Data data;
-    /* more i-node attributes will be added in future exercises */
+    pthread_rwlock_t lock;
 } inode_t;
 
 

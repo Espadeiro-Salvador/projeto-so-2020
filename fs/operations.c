@@ -241,11 +241,14 @@ int lookup(char *name) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 
+	lockstack_t lockstack; 
+	lockstack_init(&lockstack);
+
 	strcpy(full_path, name);
 
 	/* start at root node */
 	int current_inumber = FS_ROOT;
-
+	
 	/* use for copy */
 	type nType;
 	union Data data;
