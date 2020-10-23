@@ -1,4 +1,3 @@
-#include "../locks.h"
 #include "operations.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -124,13 +123,10 @@ int create(char *name, type nodeType){
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
-
-	lockWriteFS();
 	
-	parent_inumber = lookup(parent_name, NOLOCK);
+	parent_inumber = lookup(parent_name);
 
 	if (parent_inumber == FAIL) {
-		unlockFS();
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
 		return FAIL;
@@ -139,14 +135,12 @@ int create(char *name, type nodeType){
 	inode_get(parent_inumber, &pType, &pdata);
 
 	if (pType != T_DIRECTORY) {
-		unlockFS();
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
 		return FAIL;
 	}
 
 	if (lookup_sub_node(child_name, pdata.dirEntries) != FAIL) {
-		unlockFS();
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name, parent_name);
 		return FAIL;
@@ -155,20 +149,17 @@ int create(char *name, type nodeType){
 	/* create node and add entry to folder that contains new node */
 	child_inumber = inode_create(nodeType);
 	if (child_inumber == FAIL) {
-		unlockFS();
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
 		return FAIL;
 	}
 
 	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
-		unlockFS();
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
 		return FAIL;
 	}
 
-	unlockFS();
 	return SUCCESS;
 }
 
@@ -189,12 +180,9 @@ int delete(char *name){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	lockWriteFS();
-
-	parent_inumber = lookup(parent_name, NOLOCK);
+	parent_inumber = lookup(parent_name);
 
 	if (parent_inumber == FAIL) {
-		unlockFS();
 		printf("failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
 		return FAIL;
@@ -203,7 +191,6 @@ int delete(char *name){
 	inode_get(parent_inumber, &pType, &pdata);
 
 	if(pType != T_DIRECTORY) {
-		unlockFS();
 		printf("failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
 		return FAIL;
@@ -212,7 +199,6 @@ int delete(char *name){
 	child_inumber = lookup_sub_node(child_name, pdata.dirEntries);
 
 	if (child_inumber == FAIL) {
-		unlockFS();
 		printf("could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
 		return FAIL;
@@ -221,7 +207,6 @@ int delete(char *name){
 	inode_get(child_inumber, &cType, &cdata);
 
 	if (cType == T_DIRECTORY && is_dir_empty(cdata.dirEntries) == FAIL) {
-		unlockFS();
 		printf("could not delete %s: is a directory and not empty\n",
 		       name);
 		return FAIL;
@@ -229,20 +214,17 @@ int delete(char *name){
 
 	/* remove entry from folder that contained deleted node */
 	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
-		unlockFS();
 		printf("failed to delete %s from dir %s\n",
 		       child_name, parent_name);
 		return FAIL;
 	}
 
 	if (inode_delete(child_inumber) == FAIL) {
-		unlockFS();
 		printf("could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
 		return FAIL;
 	}
 
-	unlockFS();
 	return SUCCESS;
 }
 
@@ -251,12 +233,11 @@ int delete(char *name){
  * Lookup for a given path.
  * Input:
  *  - name: path of node
- *  - lock: should a lock be used, LOCK (1) to lock or anything if not
  * Returns:
  *  inumber: identifier of the i-node, if found
  *     FAIL: otherwise
  */
-int lookup(char *name, int lock) {
+int lookup(char *name) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 
@@ -269,10 +250,6 @@ int lookup(char *name, int lock) {
 	type nType;
 	union Data data;
 
-	if (lock == LOCK) {
-		lockReadFS();
-	}
-
 	/* get root inode data */
 	inode_get(current_inumber, &nType, &data);
 
@@ -282,10 +259,6 @@ int lookup(char *name, int lock) {
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		inode_get(current_inumber, &nType, &data);
 		path = strtok(NULL, delim);
-	}
-
-	if (lock == LOCK) {
-		unlockFS();
 	}
 
 	return current_inumber;

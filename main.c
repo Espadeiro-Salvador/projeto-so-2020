@@ -10,64 +10,11 @@
 #define MAX_COMMANDS 150000
 #define MAX_INPUT_SIZE 100
 
-enum { MUTEX, RWLOCK, NOSYNC } syncStrategy;
-pthread_mutex_t mutex;
-pthread_rwlock_t rwlock;
-
 int numberThreads = 0;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
 int headQueue = 0;
-
-/* Locks using mutex or wrlock if using a sync strategy. */
-void lockWriteFS() {
-    if (syncStrategy == MUTEX && pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
-    } else if (syncStrategy == RWLOCK && pthread_rwlock_wrlock(&rwlock)) {
-        printf("Error: RWLock failed to lock\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-/* Locks using mutex or rdlock if using a sync strategy. */
-void lockReadFS() {
-    if (syncStrategy == MUTEX && pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
-    } else if (syncStrategy == RWLOCK && pthread_rwlock_rdlock(&rwlock)) {
-        printf("Error: RWLock failed to lock\n");
-        exit(EXIT_FAILURE);   
-    }
-}
-
-/* Unlocks the mutex or the rwlock if using a sync strategy. */
-void unlockFS() {
-    if (syncStrategy == MUTEX && pthread_mutex_unlock(&mutex)) {
-        printf("Error: Mutex failed to unlock\n");
-        exit(EXIT_FAILURE);
-    } else if (syncStrategy == RWLOCK && pthread_rwlock_unlock(&rwlock)) {
-        printf("Error: RWLock failed to unlock\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-/* Locks the mutex if using a  */
-void lockCommandArray() {
-    if (syncStrategy != NOSYNC && pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-/* Unlocks the mutex if using a sync strategy. */
-void unlockCommandArray() {
-    if (syncStrategy != NOSYNC && pthread_mutex_unlock(&mutex)) {
-        printf("Error: Mutex failed to unlock\n");
-        exit(EXIT_FAILURE);
-    }
-}
 
 int insertCommand(char* data) {
     if(numberCommands != MAX_COMMANDS) {
@@ -135,15 +82,11 @@ void processInput(FILE *inputFile) {
 
 void applyCommands() {
     while (1) {
-        lockCommandArray();
-
         if (numberCommands <= 0) {
-            unlockCommandArray();
             break;
         }
 
         const char* command = removeCommand();
-        unlockCommandArray();
         
         if (command == NULL) {
             continue;
@@ -176,7 +119,7 @@ void applyCommands() {
                 }
                 break;
             case 'l': 
-                searchResult = lookup(name, LOCK);
+                searchResult = lookup(name);
 
                 if (searchResult >= 0)
                     printf("Search: %s found\n", name);
@@ -206,29 +149,8 @@ int main(int argc, char* argv[]) {
     struct timeval tv1, tv2;
     FILE *inputFile, *outputFile;
     
-    if (argc != 5) {
+    if (argc != 4) {
         printf("Error: wrong number of arguments\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* select synchronization strategy */
-    if (!strcmp(argv[4], "mutex")) {
-        syncStrategy = MUTEX;
-    } else if (!strcmp(argv[4], "rwlock")) {
-        if (pthread_rwlock_init(&rwlock, NULL)) {
-            printf("Error: RWLock failed to initialize\n");
-            exit(EXIT_FAILURE);
-        }
-        syncStrategy = RWLOCK;
-    } else if (!strcmp(argv[4], "nosync")) {
-        syncStrategy = NOSYNC;
-    } else {
-        printf("Error: Invalid sync strategy\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (syncStrategy != NOSYNC && pthread_mutex_init(&mutex, NULL)) {
-        printf("Error: Mutex failed to initialize\n");
         exit(EXIT_FAILURE);
     }
     
@@ -255,12 +177,6 @@ int main(int argc, char* argv[]) {
 
     if (numberThreads < 1) {
         printf("Error: can't run less than one thread\n");
-        exit(EXIT_FAILURE);
-    } else if (syncStrategy == NOSYNC && numberThreads != 1) {
-        printf("Error: can only run one thread with no sync\n");
-        exit(EXIT_FAILURE);
-    } else if (syncStrategy != NOSYNC && numberThreads == 1) {
-        printf("Error: can only use sync strategy with more than one thread\n");
         exit(EXIT_FAILURE);
     }
 
@@ -318,14 +234,6 @@ int main(int argc, char* argv[]) {
 
     /* release allocated memory */
     destroy_fs();
-    if (syncStrategy != NOSYNC && pthread_mutex_destroy(&mutex)) {
-        printf("Error: could not destroy the mutex\n");
-        exit(EXIT_FAILURE);
-    }
-    if (syncStrategy == RWLOCK && pthread_rwlock_destroy(&rwlock)) {
-        printf("Error: could not destroy the rwlock\n");
-        exit(EXIT_FAILURE);
-    }
 
     exit(EXIT_SUCCESS);
 }
