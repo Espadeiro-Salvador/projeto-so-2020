@@ -5,18 +5,20 @@ void lockstack_init(lockstack_t *stack) {
 }
 
 void lockstack_push(lockstack_t *stack, pthread_rwlock_t *lock, locktype_t locktype) {
-    if (locktype == READ_LOCK) {
-        if (pthread_rwlock_rdlock(lock)) {
-            printf("Error: Read lock failed to lock\n");
-            exit(EXIT_FAILURE);
+    if (locktype != NO_LOCK) {
+        if (locktype == READ_LOCK) {
+            printf("r\n");
+            if (pthread_rwlock_rdlock(lock)) {
+                printf("Error: Read lock failed to lock\n");
+                exit(EXIT_FAILURE);
+            }
+        } else if (locktype == WRITE_LOCK) {
+            printf("w\n");
+            if (pthread_rwlock_wrlock(lock)) {
+                printf("Error: Write lock failed to lock\n");
+                exit(EXIT_FAILURE);
+            }
         }
-        
-    } else if (locktype == WRITE_LOCK) {
-        if (pthread_rwlock_wrlock(lock)) {
-            printf("Error: Write lock failed to lock\n");
-            exit(EXIT_FAILURE);
-        }
-    }
     
     lockstack_node_t *node = malloc(sizeof(lockstack_node_t));
     if (node == NULL) {
@@ -27,6 +29,7 @@ void lockstack_push(lockstack_t *stack, pthread_rwlock_t *lock, locktype_t lockt
     node->lock = lock;
     node->next = stack->first;
     stack->first = node;
+    }
 }
 
 void lockstack_clear(lockstack_t *stack) {
@@ -38,6 +41,7 @@ void lockstack_clear(lockstack_t *stack) {
             printf("Error: RWLock failed to unlock\n");
             exit(EXIT_FAILURE);
         }
+            printf("u\n");
 
         temp = node;
         node = node->next;

@@ -47,8 +47,8 @@ void init_fs() {
 	inode_table_init();
 	
 	/* create root inode */
-	int root = inode_create(T_DIRECTORY);
-	
+	int root = inode_create(T_DIRECTORY, NULL);
+
 	if (root != FS_ROOT) {
 		printf("failed to create node for tecnicofs root\n");
 		exit(EXIT_FAILURE);
@@ -106,6 +106,42 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 }
 
 
+int getinumber(char *name, lockstack_t *lockstack) {
+	char full_path[MAX_FILE_NAME];
+	char delim[] = "/";
+	char *saveptr;
+
+	strcpy(full_path, name);
+
+	/* start at root node */
+	int current_inumber = FS_ROOT;
+	
+	/* use for copy */
+	type nType;
+	union Data data;
+
+	char *path = strtok_r(full_path, delim, &saveptr);
+
+	/* get root inode data */
+	if (path == NULL) {
+		inode_get(current_inumber, &nType, &data, WRITE_LOCK, lockstack);
+	} else {
+		inode_get(current_inumber, &nType, &data, READ_LOCK, lockstack);
+	}
+
+	/* search for all sub nodes */
+	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
+		path = strtok_r(NULL, delim, &saveptr);
+		if (path == NULL) {
+			inode_get(current_inumber, &nType, &data, WRITE_LOCK, lockstack);
+		}
+		else {
+			inode_get(current_inumber, &nType, &data, READ_LOCK, lockstack);
+		}
+	}
+	return current_inumber;
+}
+
 /*
  * Creates a new node given a path.
  * Input:
@@ -121,45 +157,54 @@ int create(char *name, type nodeType){
 	type pType;
 	union Data pdata;
 
+	lockstack_t lockstack;
+	lockstack_init(&lockstack);
+
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 	
-	parent_inumber = lookup(parent_name);
+	parent_inumber = getinumber(parent_name, &lockstack);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
-	inode_get(parent_inumber, &pType, &pdata);
+	inode_get(parent_inumber, &pType, &pdata, NO_LOCK, &lockstack);
 
 	if (pType != T_DIRECTORY) {
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
 	if (lookup_sub_node(child_name, pdata.dirEntries) != FAIL) {
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 	
 	/* create node and add entry to folder that contains new node */
-	child_inumber = inode_create(nodeType);
+	child_inumber = inode_create(nodeType, &lockstack);
 	if (child_inumber == FAIL) {
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
 	if (dir_add_entry(parent_inumber, child_inumber, child_name) == FAIL) {
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
-
+	
+	lockstack_clear(&lockstack);
 	return SUCCESS;
 }
 
@@ -176,23 +221,28 @@ int delete(char *name){
 	/* use for copy */
 	type pType, cType;
 	union Data pdata, cdata;
+	
+	lockstack_t lockstack;
+	lockstack_init(&lockstack);
 
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	parent_inumber = lookup(parent_name);
+	parent_inumber = getinumber(parent_name, &lockstack);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
-	inode_get(parent_inumber, &pType, &pdata);
+	inode_get(parent_inumber, &pType, &pdata, NO_LOCK, &lockstack);
 
 	if(pType != T_DIRECTORY) {
 		printf("failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
@@ -201,14 +251,16 @@ int delete(char *name){
 	if (child_inumber == FAIL) {
 		printf("could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
-	inode_get(child_inumber, &cType, &cdata);
+	inode_get(child_inumber, &cType, &cdata, WRITE_LOCK, &lockstack);
 
 	if (cType == T_DIRECTORY && is_dir_empty(cdata.dirEntries) == FAIL) {
 		printf("could not delete %s: is a directory and not empty\n",
 		       name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
@@ -216,15 +268,17 @@ int delete(char *name){
 	if (dir_reset_entry(parent_inumber, child_inumber) == FAIL) {
 		printf("failed to delete %s from dir %s\n",
 		       child_name, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
 	if (inode_delete(child_inumber) == FAIL) {
 		printf("could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
+		lockstack_clear(&lockstack);
 		return FAIL;
 	}
-
+	lockstack_clear(&lockstack);
 	return SUCCESS;
 }
 
@@ -240,6 +294,7 @@ int delete(char *name){
 int lookup(char *name) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
+	char *saveptr;
 
 	lockstack_t lockstack; 
 	lockstack_init(&lockstack);
@@ -254,16 +309,16 @@ int lookup(char *name) {
 	union Data data;
 
 	/* get root inode data */
-	inode_get(current_inumber, &nType, &data);
-
-	char *path = strtok(full_path, delim);
+	inode_get(current_inumber, &nType, &data, READ_LOCK, &lockstack);
+	
+	char *path = strtok_r(full_path, delim, &saveptr);
 
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
-		inode_get(current_inumber, &nType, &data);
-		path = strtok(NULL, delim);
+		inode_get(current_inumber, &nType, &data, READ_LOCK, &lockstack);
+		path = strtok_r(NULL, delim, &saveptr);
 	}
-
+	lockstack_clear(&lockstack);
 	return current_inumber;
 }
 

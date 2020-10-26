@@ -49,9 +49,9 @@ typedef struct inode_t {
 void insert_delay(int cycles);
 void inode_table_init();
 void inode_table_destroy();
-int inode_create(type nType);
+int inode_create(type nType, lockstack_t *lockstack);
 int inode_delete(int inumber);
-int inode_get(int inumber, type *nType, union Data *data);
+int inode_get(int inumber, type *nType, union Data *data, locktype_t type, lockstack_t *lockstack);
 int inode_set_file(int inumber, char *fileContents, int len);
 int dir_reset_entry(int inumber, int sub_inumber);
 int dir_add_entry(int inumber, int sub_inumber, char *sub_name);

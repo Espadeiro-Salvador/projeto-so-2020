@@ -52,12 +52,15 @@ void inode_table_destroy() {
  *  inumber: identifier of the new i-node, if successfully created
  *     FAIL: if an error occurs
  */
-int inode_create(type nType) {
+int inode_create(type nType, lockstack_t *lockstack) {
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
 
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
         if (inode_table[inumber].nodeType == T_NONE) {
+            if (lockstack != NULL) {
+                lockstack_push(lockstack, &inode_table[inumber].lock, WRITE_LOCK);
+            }
             inode_table[inumber].nodeType = nType;
 
             if (nType == T_DIRECTORY) {
@@ -108,10 +111,14 @@ int inode_delete(int inumber) {
  *  - data: pointer to data
  * Returns: SUCCESS or FAIL
  */
-int inode_get(int inumber, type *nType, union Data *data) {
+int inode_get(int inumber, type *nType, union Data *data, locktype_t type, lockstack_t *lockstack) {
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
 
+    if (type != NO_LOCK) {
+        lockstack_push(lockstack, &inode_table[inumber].lock, type);
+    }
+    
     if ((inumber < 0) || (inumber > INODE_TABLE_SIZE) || (inode_table[inumber].nodeType == T_NONE)) {
         printf("inode_get: invalid inumber %d\n", inumber);
         return FAIL;

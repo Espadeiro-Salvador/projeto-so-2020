@@ -16,7 +16,7 @@ typedef struct lockstack_t {
 } lockstack_t;
 
 typedef enum locktype_t {
-    READ_LOCK, WRITE_LOCK
+    READ_LOCK, WRITE_LOCK, NO_LOCK
 } locktype_t;
 
 void lockstack_init(lockstack_t *stack);
