@@ -7,6 +7,7 @@
 
 inode_t inode_table[INODE_TABLE_SIZE];
 
+pthread_rwlock_t createlock;
 
 /*
  * Sleeps for synchronization testing.
@@ -25,7 +26,9 @@ void inode_table_init() {
         inode_table[i].data.dirEntries = NULL;
         inode_table[i].data.fileContents = NULL;
         pthread_rwlock_init(&inode_table[i].lock, NULL);
+        /* pthread_rwlock_init(&inode_table[i].createLock, NULL); */
     }
+    pthread_rwlock_init(&createlock, NULL);
 }
 
 /*
@@ -41,6 +44,7 @@ void inode_table_destroy() {
             free(inode_table[i].data.dirEntries);
         }
         pthread_rwlock_destroy(&inode_table[i].lock);
+        pthread_rwlock_init(&createlock, NULL);
     }
 }
 
@@ -57,25 +61,48 @@ int inode_create(type nType, lockstack_t *lockstack) {
     insert_delay(DELAY);
 
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
-        /* PERGUNTAR... */
         if (inode_table[inumber].nodeType == T_NONE) {
-            if (lockstack != NULL) {
-                lockstack_push(lockstack, &inode_table[inumber].lock, WRITE_LOCK);
+            /*
+            if (pthread_rwlock_trywrlock(&inode_table[inumber].createLock)) {
+                continue;
             }
-            inode_table[inumber].nodeType = nType;
+            */
+           
+            if (pthread_rwlock_wrlock(&createlock)) {
+                printf("Error: Write lock failed to lock\n");
+                exit(EXIT_FAILURE);
+            }
 
-            if (nType == T_DIRECTORY) {
-                /* Initializes entry table */
-                inode_table[inumber].data.dirEntries = malloc(sizeof(DirEntry) * MAX_DIR_ENTRIES);
-                
-                for (int i = 0; i < MAX_DIR_ENTRIES; i++) {
-                    inode_table[inumber].data.dirEntries[i].inumber = FREE_INODE;
+            if (inode_table[inumber].nodeType == T_NONE) {
+                if (lockstack != NULL) {
+                    lockstack_push(lockstack, &inode_table[inumber].lock, WRITE_LOCK);
                 }
+                
+                inode_table[inumber].nodeType = nType;
+                
+                if (pthread_rwlock_unlock(&createlock)) {
+                    printf("Error: RWLock failed to unlock\n");
+                    exit(EXIT_FAILURE);
+                }
+
+                if (nType == T_DIRECTORY) {
+                    /* Initializes entry table */
+                    inode_table[inumber].data.dirEntries = malloc(sizeof(DirEntry) * MAX_DIR_ENTRIES);
+                    
+                    for (int i = 0; i < MAX_DIR_ENTRIES; i++) {
+                        inode_table[inumber].data.dirEntries[i].inumber = FREE_INODE;
+                    }
+                }
+                else {
+                    inode_table[inumber].data.fileContents = NULL;
+                }
+                return inumber;
             }
-            else {
-                inode_table[inumber].data.fileContents = NULL;
+
+            if (pthread_rwlock_unlock(&createlock)) {
+                printf("Error: RWLock failed to unlock\n");
+                exit(EXIT_FAILURE);
             }
-            return inumber;
         }
     }
     return FAIL;
