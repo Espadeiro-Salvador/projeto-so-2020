@@ -57,6 +57,7 @@ int inode_create(type nType, lockstack_t *lockstack) {
     insert_delay(DELAY);
 
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
+        /* PERGUNTAR... */
         if (inode_table[inumber].nodeType == T_NONE) {
             if (lockstack != NULL) {
                 lockstack_push(lockstack, &inode_table[inumber].lock, WRITE_LOCK);

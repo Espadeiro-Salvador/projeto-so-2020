@@ -237,6 +237,7 @@ int delete(char *name){
 		return FAIL;
 	}
 
+	/* parent is already locked for writing */
 	inode_get(parent_inumber, &pType, &pdata, NO_LOCK, &lockstack);
 
 	if(pType != T_DIRECTORY) {
