@@ -7,26 +7,67 @@
 #include <pthread.h>
 #include "fs/operations.h" 
 
-#define MAX_COMMANDS 150000
+#define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
 
 int numberThreads = 0;
 
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
+int insptr = 0, remptr = 0;
 int headQueue = 0;
 
-int insertCommand(char* data) {
-    if(numberCommands != MAX_COMMANDS) {
-        strcpy(inputCommands[numberCommands++], data);
-        return 1;
+pthread_mutex_t mutex;
+pthread_cond_t canInsert, canRemove;
+
+void insertCommand(char* data) {
+    if (pthread_mutex_lock(&mutex)) {
+        printf("Error: Mutex failed to lock\n");
+        exit(EXIT_FAILURE);
     }
-    return 0;
+    
+    while (numberCommands == MAX_COMMANDS) {
+        pthread_cond_wait(&canInsert, &mutex);
+    }
+
+    strcpy(inputCommands[insptr], data);
+
+    insptr++;
+    if (insptr == MAX_COMMANDS) {
+        insptr = 0;
+    }
+    
+    numberCommands++;
+
+    pthread_cond_signal(&canRemove);
+    pthread_mutex_unlock(&mutex);
 }
 
-char* removeCommand() {
+char *removeCommand() {
+    char command[MAX_INPUT_SIZE];
+
+    if (pthread_mutex_lock(&mutex)) {
+        printf("Error: Mutex failed to lock\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    while (numberCommands == 0) {
+        pthread_cond_wait(&canRemove, &mutex);
+    }
+    
+    strcpy(command, inputCommands[remptr]);
+    
+    remptr++;
+    if (remptr == MAX_COMMANDS) {
+        remptr = 0;
+    }
+        
     numberCommands--;
-    return inputCommands[headQueue++];
+    
+    pthread_cond_signal(&canInsert);
+    pthread_mutex_unlock(&mutex);
+    
+    return command;
 }
 
 void errorParse() {
@@ -52,23 +93,21 @@ void processInput(FILE *inputFile) {
             case 'c':
                 if(numTokens != 3)
                     errorParse();
-                if(insertCommand(line))
-                    break;
-                return;
+                insertCommand(line);
+                break;
             
             case 'l':
                 if(numTokens != 2)
                     errorParse();
-                if(insertCommand(line))
-                    break;
-                return;
+                insertCommand(line);
+                break;
+            
             
             case 'd':
                 if(numTokens != 2)
                     errorParse();
-                if(insertCommand(line))
-                    break;
-                return;
+                insertCommand(line);
+                break;
             
             case '#':
                 break;
@@ -154,6 +193,21 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
     
+    if (pthread_mutex_init(&mutex, NULL)) {
+        printf("Error: Mutex failed to init\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (pthread_cond_init(&canInsert, NULL)) {
+        printf("Error: Cond failed to init\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pthread_cond_init(&canRemove, NULL)) {
+        printf("Error: Cond failed to init\n");
+        exit(EXIT_FAILURE);
+    }
+    
     /* init filesystem */
     init_fs();
 
@@ -163,9 +217,6 @@ int main(int argc, char* argv[]) {
         printf("Error: could not open the input file\n");
         exit(EXIT_FAILURE);
     }
-
-    /* process input */
-    processInput(inputFile);
 
     /* close input file */
     if (fclose(inputFile)) {
@@ -181,12 +232,6 @@ int main(int argc, char* argv[]) {
     }
 
     pthread_t tid[numberThreads];
-    
-    /* get initial time */
-    if (gettimeofday(&tv1, NULL) == -1) {
-        printf("Error: could not get the time\n");
-        exit(EXIT_FAILURE);
-    }
 
     /* create the tasks */
     for(int i = 0; i < numberThreads; i++) {
@@ -195,6 +240,15 @@ int main(int argc, char* argv[]) {
             exit(EXIT_FAILURE);
         }
     }
+
+    /* get initial time */
+    if (gettimeofday(&tv1, NULL) == -1) {
+        printf("Error: could not get the time\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* process input */
+    processInput(inputFile);
 
     /* wait for all the threads to finish running */
     for (int i = 0; i < numberThreads; i++) {
@@ -234,6 +288,21 @@ int main(int argc, char* argv[]) {
 
     /* release allocated memory */
     destroy_fs();
+
+    if (pthread_mutex_destroy(&mutex)) {
+        printf("Error: Mutex failed to destroy\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pthread_cond_destroy(&canInsert)) {
+        printf("Error: Cond failed to destroy\n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (pthread_cond_destroy(&canRemove)) {
+        printf("Error: Cond failed to destroy\n");
+        exit(EXIT_FAILURE);
+    }
 
     exit(EXIT_SUCCESS);
 }
