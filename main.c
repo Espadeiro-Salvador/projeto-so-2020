@@ -131,14 +131,14 @@ void processInput(FILE *inputFile) {
             }
         }
     }
+
+    char command[] = "c /f f";
+    command[0] = EOF;
+    insertCommand(command);
 }
 
 void applyCommands() {
     while (1) {
-        if (numberCommands <= 0) {
-            break;
-        }
-
         char command[MAX_INPUT_SIZE];
         removeCommand(command);
         
@@ -149,7 +149,7 @@ void applyCommands() {
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
-        
+
         if (numTokens < 2) {
             printf("Error: invalid command in Queue\n");
             exit(EXIT_FAILURE);
@@ -185,6 +185,9 @@ void applyCommands() {
                 printf("Delete: %s\n", name);
                 delete(name);
                 break;
+            case EOF:
+                insertCommand(command);
+                return;
             default: { /* error */
                 printf("Error: command to apply\n");
                 exit(EXIT_FAILURE);
@@ -202,7 +205,7 @@ void *threadFunction(void *arg) {
 int main(int argc, char* argv[]) {
     struct timeval tv1, tv2;
     FILE *inputFile, *outputFile;
-    
+
     if (argc != 4) {
         printf("Error: wrong number of arguments\n");
         exit(EXIT_FAILURE);
@@ -225,17 +228,11 @@ int main(int argc, char* argv[]) {
     
     /* init filesystem */
     init_fs();
-
+    
     /* open input file */
     inputFile = fopen(argv[1], "r");
     if (!inputFile) {
         printf("Error: could not open the input file\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* close input file */
-    if (fclose(inputFile)) {
-        printf("Error: could not close the input file\n");
         exit(EXIT_FAILURE);
     }
 
@@ -264,6 +261,12 @@ int main(int argc, char* argv[]) {
 
     /* process input */
     processInput(inputFile);
+
+    /* close input file */
+    if (fclose(inputFile)) {
+        printf("Error: could not close the input file\n");
+        exit(EXIT_FAILURE);
+    }
 
     /* wait for all the threads to finish running */
     for (int i = 0; i < numberThreads; i++) {

@@ -134,8 +134,7 @@ int getinumber(char *name, lockstack_t *lockstack) {
 		path = strtok_r(NULL, delim, &saveptr);
 		if (path == NULL) {
 			inode_get(current_inumber, &nType, &data, WRITE_LOCK, lockstack);
-		}
-		else {
+		} else {
 			inode_get(current_inumber, &nType, &data, READ_LOCK, lockstack);
 		}
 	}
@@ -203,7 +202,7 @@ int create(char *name, type nodeType){
 		lockstack_clear(&lockstack);
 		return FAIL;
 	}
-	
+
 	lockstack_clear(&lockstack);
 	return SUCCESS;
 }

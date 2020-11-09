@@ -20,7 +20,8 @@ typedef enum locktype_t {
 } locktype_t;
 
 void lockstack_init(lockstack_t *stack);
-void lockstack_push(lockstack_t *stack, pthread_rwlock_t *lock, locktype_t locktype);
+void lockstack_addlock(lockstack_t *stack, pthread_rwlock_t *lock, locktype_t locktype);
+void lockstack_push(lockstack_t *stack, pthread_rwlock_t *lock);
 void lockstack_clear(lockstack_t *stack);
 
 #endif /* LOCKSTACK_H */
