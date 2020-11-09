@@ -27,7 +27,10 @@ void insertCommand(char* data) {
     }
     
     while (numberCommands == MAX_COMMANDS) {
-        pthread_cond_wait(&canInsert, &mutex);
+        if (pthread_cond_wait(&canInsert, &mutex)) {
+            printf("Error: couldn't wait for cond signal\n");
+            exit(EXIT_FAILURE);
+        }
     }
 
     strcpy(inputCommands[insptr], data);
@@ -39,20 +42,27 @@ void insertCommand(char* data) {
     
     numberCommands++;
 
-    pthread_cond_signal(&canRemove);
-    pthread_mutex_unlock(&mutex);
+    if (pthread_cond_signal(&canRemove)) {
+        printf("Error: Failed to send cond signal\n");
+        exit(EXIT_FAILURE);
+    }
+    if (pthread_mutex_unlock(&mutex)) {
+        printf("Error: Mutex failed to unlock\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
-char *removeCommand() {
-    char command[MAX_INPUT_SIZE];
-
+void removeCommand(char *command) {
     if (pthread_mutex_lock(&mutex)) {
         printf("Error: Mutex failed to lock\n");
         exit(EXIT_FAILURE);
     }
     
     while (numberCommands == 0) {
-        pthread_cond_wait(&canRemove, &mutex);
+        if (pthread_cond_wait(&canRemove, &mutex)) {
+            printf("Error: couldn't wait for cond signal\n");
+            exit(EXIT_FAILURE);
+        }
     }
     
     strcpy(command, inputCommands[remptr]);
@@ -64,10 +74,14 @@ char *removeCommand() {
         
     numberCommands--;
     
-    pthread_cond_signal(&canInsert);
-    pthread_mutex_unlock(&mutex);
-    
-    return command;
+    if (pthread_cond_signal(&canInsert)) {
+        printf("Error: Failed to send cond signal\n");
+        exit(EXIT_FAILURE);
+    }
+    if (pthread_mutex_unlock(&mutex)) {
+        printf("Error: Mutex failed to unlock\n");
+        exit(EXIT_FAILURE);
+    }
 }
 
 void errorParse() {
@@ -125,7 +139,8 @@ void applyCommands() {
             break;
         }
 
-        const char* command = removeCommand();
+        char command[MAX_INPUT_SIZE];
+        removeCommand(command);
         
         if (command == NULL) {
             continue;
