@@ -132,9 +132,11 @@ void processInput(FILE *inputFile) {
         }
     }
 
-    char command[] = "c /f f";
+    char command[1];
     command[0] = EOF;
-    insertCommand(command);
+    for (int i = 0; i < numberThreads; i++) {
+        insertCommand(command);   
+    }
 }
 
 void applyCommands() {
@@ -149,6 +151,8 @@ void applyCommands() {
         char token, type;
         char name[MAX_INPUT_SIZE];
         int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+
+        if (token == EOF) return;
 
         if (numTokens < 2) {
             printf("Error: invalid command in Queue\n");
@@ -185,9 +189,7 @@ void applyCommands() {
                 printf("Delete: %s\n", name);
                 delete(name);
                 break;
-            case EOF:
-                insertCommand(command);
-                return;
+
             default: { /* error */
                 printf("Error: command to apply\n");
                 exit(EXIT_FAILURE);
@@ -198,7 +200,6 @@ void applyCommands() {
 
 void *threadFunction(void *arg) {
     applyCommands();
-
     return NULL;
 }
 
