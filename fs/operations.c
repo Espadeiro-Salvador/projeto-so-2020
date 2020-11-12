@@ -282,6 +282,86 @@ int delete(char *name){
 	return SUCCESS;
 }
 
+/*
+ * Moves node to a different path.
+ * Input:
+ *  - from: path of node
+ * 	- to: path to move node into 
+ * Returns:
+ *  Returns: SUCCESS or FAIL
+ */
+void move(char *from, char *to) {
+	int parent_inumber_from, parent_inumber_to, child_inumber;
+	char name_copy[MAX_FILE_NAME];
+	char *parent_name_from, *parent_name_to, *child_name;
+
+	lockstack_t lockstack;
+	lockstack_init(&lockstack);
+	
+	strcpy(name_copy, from);
+	split_parent_child_from_path(name_copy, &parent_name_from, &child_name);
+	strcpy(name_copy, to);
+	split_parent_child_from_path(name_copy, &parent_name_to, &child_name);
+	
+	int compare = strcmp(parent_name_from, parent_name_to);
+	
+	if (compare == 0) {
+		parent_inumber_from = getinumber(parent_name_from, &lockstack);
+		if (parent_inumber_from == FAIL) {
+			printf("failed to move %s, invalid parent dir %s\n",
+					child_name, parent_name_from);
+			lockstack_clear(&lockstack);
+			return FAIL;
+		}
+
+		parent_inumber_to = parent_inumber_from;
+	} else if (compare < 0) {
+		parent_inumber_from = getinumber(parent_name_from, &lockstack);
+		if (parent_inumber_from == FAIL) {
+			printf("failed to move %s, invalid parent dir %s\n",
+					child_name, parent_name_from);
+			lockstack_clear(&lockstack);
+			return FAIL;
+		}
+
+		parent_inumber_to = getinumber(parent_name_to, &lockstack);
+		if (parent_inumber_to == FAIL) {
+			printf("failed to move %s, invalid parent dir %s\n",
+					child_name, parent_name_to);
+			lockstack_clear(&lockstack);
+			return FAIL;
+		}
+	} else {
+		parent_inumber_to = getinumber(parent_name_to, &lockstack);
+		if (parent_inumber_to == FAIL) {
+			printf("failed to move %s, invalid parent dir %s\n",
+					child_name, parent_name_to);
+			lockstack_clear(&lockstack);
+			return FAIL;
+		}
+
+		parent_inumber_from = getinumber(parent_name_from, &lockstack);
+		if (parent_inumber_from == FAIL) {
+			printf("failed to move %s, invalid parent dir %s\n",
+					child_name, parent_name_from);
+			lockstack_clear(&lockstack);
+			return FAIL;
+		}
+	}
+
+	if (dir_add_entry(parent_inumber_to, child_inumber, child_name) == FAIL) {
+		lockstack_clear(&lockstack);
+		return FAIL;
+	}
+
+	if (dir_reset_entry(parent_inumber_from, child_inumber) == FAIL) {
+		lockstack_clear(&lockstack);
+		return FAIL;
+	}
+
+	lockstack_clear(&lockstack);
+	return SUCCESS;
+}
 
 /*
  * Lookup for a given path.
