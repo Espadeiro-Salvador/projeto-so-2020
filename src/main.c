@@ -8,7 +8,7 @@
 #include "fs/operations.h" 
 
 #define MAX_COMMANDS 10
-#define MAX_INPUT_SIZE 200
+#define MAX_INPUT_SIZE 100
 
 int numberThreads = 0;
 
