@@ -56,7 +56,7 @@ int inode_create(type nType, lockstack_t *lockstack) {
     insert_delay(DELAY);
 
     for (int inumber = 0; inumber < INODE_TABLE_SIZE; inumber++) {
-        if (lockstack != NULL && pthread_rwlock_trywrlock(&inode_table[inumber].lock)) {
+        if (lockstack_trylock(lockstack, &inode_table[inumber].lock)) {
             continue;
         }
             /*
@@ -66,7 +66,6 @@ int inode_create(type nType, lockstack_t *lockstack) {
             }
             */
         if (inode_table[inumber].nodeType == T_NONE) {
-            lockstack_push(lockstack, &inode_table[inumber].lock);
             inode_table[inumber].nodeType = nType;
 
             if (nType == T_DIRECTORY) {
@@ -83,10 +82,7 @@ int inode_create(type nType, lockstack_t *lockstack) {
             return inumber;
         }
 
-        if (pthread_rwlock_unlock(&inode_table[inumber].lock)) {
-            printf("Error: RWLock failed to unlock\n");
-            exit(EXIT_FAILURE);
-        }
+        lockstack_pop(lockstack);
     }
 
     return FAIL;

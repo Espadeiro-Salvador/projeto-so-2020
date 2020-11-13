@@ -290,52 +290,58 @@ int delete(char *name){
  * Returns:
  *  Returns: SUCCESS or FAIL
  */
-void move(char *from, char *to) {
+int move(char *from, char *to) {
 	int parent_inumber_from, parent_inumber_to, child_inumber;
-	char name_copy[MAX_FILE_NAME];
-	char *parent_name_from, *parent_name_to, *child_name;
+	char parent_name_from_copy[MAX_FILE_NAME];
+	char parent_name_to_copy[MAX_FILE_NAME];
+
+	char *parent_name_from, *parent_name_to, *child_name_from, *child_name_to;
+	type pfType, ptType;
+	union Data pfdata, ptdata;
 
 	lockstack_t lockstack;
 	lockstack_init(&lockstack);
 	
-	strcpy(name_copy, from);
-	split_parent_child_from_path(name_copy, &parent_name_from, &child_name);
-	strcpy(name_copy, to);
-	split_parent_child_from_path(name_copy, &parent_name_to, &child_name);
+	strcpy(parent_name_from_copy, from);
+	split_parent_child_from_path(parent_name_from_copy, &parent_name_from, &child_name_from);
+	strcpy(parent_name_to_copy, to);
+	split_parent_child_from_path(parent_name_to_copy, &parent_name_to, &child_name_to);
 	
 	int compare = strcmp(parent_name_from, parent_name_to);
 	
+	// Locks the i-nodes acording to the lexicographic order of the paths to avoid deadlocks.
 	if (compare == 0) {
+		// As parents are the same, execute getinumber once.
 		parent_inumber_from = getinumber(parent_name_from, &lockstack);
 		if (parent_inumber_from == FAIL) {
 			printf("failed to move %s, invalid parent dir %s\n",
-					child_name, parent_name_from);
+					child_name_from, parent_name_from);
 			lockstack_clear(&lockstack);
 			return FAIL;
 		}
-
 		parent_inumber_to = parent_inumber_from;
+
 	} else if (compare < 0) {
 		parent_inumber_from = getinumber(parent_name_from, &lockstack);
 		if (parent_inumber_from == FAIL) {
 			printf("failed to move %s, invalid parent dir %s\n",
-					child_name, parent_name_from);
+					child_name_from, parent_name_from);
+			lockstack_clear(&lockstack);
+			return FAIL;
+		}
+		parent_inumber_to = getinumber(parent_name_to, &lockstack);
+		if (parent_inumber_to == FAIL) {
+			printf("failed to move %s, invalid parent dir %s\n",
+					child_name_from, parent_name_to);
 			lockstack_clear(&lockstack);
 			return FAIL;
 		}
 
-		parent_inumber_to = getinumber(parent_name_to, &lockstack);
-		if (parent_inumber_to == FAIL) {
-			printf("failed to move %s, invalid parent dir %s\n",
-					child_name, parent_name_to);
-			lockstack_clear(&lockstack);
-			return FAIL;
-		}
 	} else {
 		parent_inumber_to = getinumber(parent_name_to, &lockstack);
 		if (parent_inumber_to == FAIL) {
 			printf("failed to move %s, invalid parent dir %s\n",
-					child_name, parent_name_to);
+					child_name_from, parent_name_to);
 			lockstack_clear(&lockstack);
 			return FAIL;
 		}
@@ -343,13 +349,51 @@ void move(char *from, char *to) {
 		parent_inumber_from = getinumber(parent_name_from, &lockstack);
 		if (parent_inumber_from == FAIL) {
 			printf("failed to move %s, invalid parent dir %s\n",
-					child_name, parent_name_from);
+					child_name_from, parent_name_from);
 			lockstack_clear(&lockstack);
 			return FAIL;
 		}
 	}
 
-	if (dir_add_entry(parent_inumber_to, child_inumber, child_name) == FAIL) {
+	inode_get(parent_inumber_from, &pfType, &pfdata, NO_LOCK, &lockstack);
+
+	if (pfType != T_DIRECTORY) {
+		printf("failed to move %s, parent %s is not a dir\n",
+		        child_name_from, parent_name_from);
+		lockstack_clear(&lockstack);
+		return FAIL;
+	}
+
+	child_inumber = lookup_sub_node(child_name_from, pfdata.dirEntries);
+
+	if (child_inumber == FAIL) {
+		printf("could not move %s, does not exist in dir %s\n",
+		       child_name_from, parent_name_from);
+		lockstack_clear(&lockstack);
+		return FAIL;
+	}
+
+	if (compare == 0) {
+		ptdata = pfdata;
+	} else {
+		inode_get(parent_inumber_to, &ptType, &ptdata, NO_LOCK, &lockstack);
+
+		if (pfType != T_DIRECTORY) {
+			printf("failed to move %s, dest %s is not a dir\n",
+							child_name_from, parent_name_to);
+			lockstack_clear(&lockstack);		
+			return FAIL;
+		}
+	}
+
+	if (lookup_sub_node(child_name_to, ptdata.dirEntries) != FAIL) {
+		printf("failed to create %s, already exists in dir %s\n",
+		       child_name_from, parent_name_to);
+		lockstack_clear(&lockstack);
+		return FAIL;
+	}
+
+	if (dir_add_entry(parent_inumber_to, child_inumber, child_name_to) == FAIL) {
 		lockstack_clear(&lockstack);
 		return FAIL;
 	}

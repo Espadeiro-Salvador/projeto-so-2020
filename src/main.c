@@ -8,7 +8,7 @@
 #include "fs/operations.h" 
 
 #define MAX_COMMANDS 10
-#define MAX_INPUT_SIZE 100
+#define MAX_INPUT_SIZE 200
 
 int numberThreads = 0;
 
@@ -84,8 +84,8 @@ void removeCommand(char *command) {
     }
 }
 
-void errorParse() {
-    printf("Error: command invalid\n");
+void errorParse(const char *command) {
+    printf("Error: command invalid: %s\n", command);
     exit(EXIT_FAILURE);
 }
 
@@ -94,40 +94,47 @@ void processInput(FILE *inputFile) {
 
     /* break loop with ^Z or ^D */
     while (fgets(line, sizeof(line)/sizeof(char), inputFile)) {
-        char token, type;
-        char name[MAX_INPUT_SIZE];
+        char token;
+        char arg1[MAX_INPUT_SIZE];
+        char arg2[MAX_INPUT_SIZE];
 
-        int numTokens = sscanf(line, "%c %s %c", &token, name, &type);
+        int numTokens = sscanf(line, "%c %s %s", &token, arg1, arg2);
 
         /* perform minimal validation */
         if (numTokens < 1) {
             continue;
         }
+
         switch (token) {
             case 'c':
                 if(numTokens != 3)
-                    errorParse();
+                    errorParse(line);
                 insertCommand(line);
                 break;
             
             case 'l':
                 if(numTokens != 2)
-                    errorParse();
+                    errorParse(line);
                 insertCommand(line);
                 break;
             
             
             case 'd':
                 if(numTokens != 2)
-                    errorParse();
+                    errorParse(line);
                 insertCommand(line);
                 break;
             
+            case 'm':
+                 if(numTokens != 3)
+                    errorParse(line);
+                insertCommand(line);
+                break;
             case '#':
                 break;
             
             default: { /* error */
-                errorParse();
+                errorParse(line);
             }
         }
     }
@@ -148,9 +155,10 @@ void applyCommands() {
             continue;
         }
 
-        char token, type;
-        char name[MAX_INPUT_SIZE];
-        int numTokens = sscanf(command, "%c %s %c", &token, name, &type);
+        char token;
+        char arg1[MAX_INPUT_SIZE];
+        char arg2[MAX_INPUT_SIZE];
+        int numTokens = sscanf(command, "%c %s %s", &token, arg1, arg2);
 
         if (token == EOF) return;
 
@@ -162,14 +170,14 @@ void applyCommands() {
         int searchResult;
         switch (token) {
             case 'c':
-                switch (type) {
+                switch (arg2[0]) {
                     case 'f':
-                        printf("Create file: %s\n", name);
-                        create(name, T_FILE);
+                        printf("Create file: %s\n", arg1);
+                        create(arg1, T_FILE);
                         break;
                     case 'd':
-                        printf("Create directory: %s\n", name);
-                        create(name, T_DIRECTORY);
+                        printf("Create directory: %s\n", arg1);
+                        create(arg1, T_DIRECTORY);
                         break;
                     default:
                         printf("Error: invalid node type\n");
@@ -177,17 +185,22 @@ void applyCommands() {
                 }
                 break;
             case 'l': 
-                searchResult = lookup(name);
+                searchResult = lookup(arg1);
 
                 if (searchResult >= 0)
-                    printf("Search: %s found\n", name);
+                    printf("Search: %s found\n", arg1);
                 else
-                    printf("Search: %s not found\n", name);
+                    printf("Search: %s not found\n", arg1);
                 break;
 
             case 'd':
-                printf("Delete: %s\n", name);
-                delete(name);
+                printf("Delete: %s\n", arg1);
+                delete(arg1);
+                break;
+
+            case 'm':
+                printf("Move: %s to %s\n", arg1, arg2);
+                move(arg1, arg2);
                 break;
 
             default: { /* error */

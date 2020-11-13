@@ -1,0 +1,4 @@
+c a d
+c b d
+c a/f1.txt f
+c b/f2.txt f
