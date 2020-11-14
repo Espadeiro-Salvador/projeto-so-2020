@@ -2,7 +2,7 @@
 .idea/
 .ccls-cache/
 
-outputs
+outputs/
 
 # Prerequisites
 *.d

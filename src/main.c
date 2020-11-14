@@ -216,15 +216,7 @@ void *threadFunction(void *arg) {
     return NULL;
 }
 
-int main(int argc, char* argv[]) {
-    struct timeval tv1, tv2;
-    FILE *inputFile, *outputFile;
-
-    if (argc != 4) {
-        printf("Error: wrong number of arguments\n");
-        exit(EXIT_FAILURE);
-    }
-    
+void init_sync() {
     if (pthread_mutex_init(&mutex, NULL)) {
         printf("Error: Mutex failed to init\n");
         exit(EXIT_FAILURE);
@@ -239,89 +231,10 @@ int main(int argc, char* argv[]) {
         printf("Error: Cond failed to init\n");
         exit(EXIT_FAILURE);
     }
-    
-    /* init filesystem */
-    init_fs();
-    
-    /* open input file */
-    inputFile = fopen(argv[1], "r");
-    if (!inputFile) {
-        printf("Error: could not open the input file\n");
-        exit(EXIT_FAILURE);
-    }
+}
 
-    numberThreads = atoi(argv[3]);
-
-    if (numberThreads < 1) {
-        printf("Error: can't run less than one thread\n");
-        exit(EXIT_FAILURE);
-    }
-
-    pthread_t tid[numberThreads];
-
-    /* create the tasks */
-    for(int i = 0; i < numberThreads; i++) {
-        if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
-            printf("Error: could not create thread\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    /* get initial time */
-    if (gettimeofday(&tv1, NULL) == -1) {
-        printf("Error: could not get the time\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* process input */
-    processInput(inputFile);
-
-    /* close input file */
-    if (fclose(inputFile)) {
-        printf("Error: could not close the input file\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* wait for all the threads to finish running */
-    for (int i = 0; i < numberThreads; i++) {
-        if (pthread_join(tid[i], NULL)) {
-            printf("Error: error waiting for thread\n");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    /* get final time */
-    if (gettimeofday(&tv2, NULL) == -1) {
-        printf("Error: could not get the time\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* prints execution time */
-    printf("TecnicoFS completed in %.4f seconds\n", 
-        (double) (tv2.tv_usec - tv1.tv_usec) / 1000000 +
-        (double) (tv2.tv_sec - tv1.tv_sec));
-
-    
-    /* open output file */
-    outputFile = fopen(argv[2], "w");
-    if (!outputFile) {
-        printf("Error: could not open output file\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* print tree */
-    print_tecnicofs_tree(outputFile);
-
-    /* close output file */
-    if (fclose(outputFile)) {
-        printf("Error: could not close the output file\n");
-        exit(EXIT_FAILURE);
-    }
-
-    /* release allocated memory */
-    destroy_fs();
-
-    if (pthread_mutex_destroy(&mutex)) {
+void destroy_sync() {
+        if (pthread_mutex_destroy(&mutex)) {
         printf("Error: Mutex failed to destroy\n");
         exit(EXIT_FAILURE);
     }
@@ -335,6 +248,119 @@ int main(int argc, char* argv[]) {
         printf("Error: Cond failed to destroy\n");
         exit(EXIT_FAILURE);
     }
+}
+
+void start_timer(struct timeval *start) {
+    if (gettimeofday(start, NULL) == -1) {
+        printf("Error: could not get the time\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+double stop_timer(struct timeval *start) {
+    struct timeval stop;
+
+    /* get final time */
+    if (gettimeofday(&stop, NULL) == -1) {
+        printf("Error: could not get the time\n");
+        exit(EXIT_FAILURE);
+    }
+
+    return (double) (stop.tv_usec - start->tv_usec) / 1000000 + 
+        (double) (stop.tv_sec - start->tv_sec);
+}
+
+void create_thread_pool(pthread_t *tid, int numberThreads) {
+    for(int i = 0; i < numberThreads; i++) {
+        if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
+            printf("Error: could not create thread\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+void wait_for_threads(pthread_t *tid, int numberThreads) {
+    for (int i = 0; i < numberThreads; i++) {
+        if (pthread_join(tid[i], NULL)) {
+            printf("Error: error waiting for thread\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+void print_output(char *name) {
+    FILE *outputFile;
+
+    /* open output file */
+    outputFile = fopen(name, "w");
+    if (!outputFile) {
+        printf("Error: could not open output file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* print tree */
+    print_tecnicofs_tree(outputFile);
+
+    /* close output file */
+    if (fclose(outputFile)) {
+        printf("Error: could not close the output file\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void parse_args(int argc, char* argv[]) {
+    if (argc != 4) {
+        printf("Error: wrong number of arguments\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* get number of threads */
+    numberThreads = atoi(argv[3]);
+    if (numberThreads < 1) {
+        printf("Error: can't run less than one thread\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+int main(int argc, char* argv[]) {
+    struct timeval start;
+    FILE *inputFile;
+
+    parse_args(argc, argv);
+    
+    /* init global mutex and conds */
+    init_sync();
+    /* init filesystem */
+    init_fs();
+
+    /* create the tasks */
+    pthread_t tid[numberThreads];
+    create_thread_pool(tid, numberThreads);
+
+    /* open input file */
+    inputFile = fopen(argv[1], "r");
+    if (!inputFile) {
+        printf("Error: could not open the input file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    start_timer(&start);
+    processInput(inputFile);
+
+    /* close input file */
+    if (fclose(inputFile)) {
+        printf("Error: could not close the input file\n");
+        exit(EXIT_FAILURE);
+    }
+
+    /* wait for all the threads to finish running */
+    wait_for_threads(tid, numberThreads);
+    printf("TecnicoFS completed in %.4f seconds\n", stop_timer(&start));
+    print_output(argv[2]);
+
+    /* release allocated memory */
+    destroy_fs();
+    destroy_sync();
 
     exit(EXIT_SUCCESS);
 }

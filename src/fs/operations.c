@@ -106,7 +106,7 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 }
 
 
-int getinumber(char *name, lockstack_t *lockstack) {
+int getinumber(char *name, lockstack_t *lockstack, locktype_t locktype) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
 	char *saveptr;
@@ -123,21 +123,22 @@ int getinumber(char *name, lockstack_t *lockstack) {
 	char *path = strtok_r(full_path, delim, &saveptr);
 
 	/* get root inode data */
-	if (path == NULL) {
-		inode_get(current_inumber, &nType, &data, WRITE_LOCK, lockstack);
-	} else {
+	if (path != NULL) {
 		inode_get(current_inumber, &nType, &data, READ_LOCK, lockstack);
 	}
-
+		
 	/* search for all sub nodes */
 	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
 		path = strtok_r(NULL, delim, &saveptr);
-		if (path == NULL) {
-			inode_get(current_inumber, &nType, &data, WRITE_LOCK, lockstack);
-		} else {
+		if (path != NULL) {
 			inode_get(current_inumber, &nType, &data, READ_LOCK, lockstack);
 		}
 	}
+
+	if (path == NULL && current_inumber != FAIL) {
+		inode_get(current_inumber, &nType, &data, locktype, lockstack);
+	}
+
 	return current_inumber;
 }
 
@@ -162,7 +163,7 @@ int create(char *name, type nodeType){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 	
-	parent_inumber = getinumber(parent_name, &lockstack);
+	parent_inumber = getinumber(parent_name, &lockstack, WRITE_LOCK);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
@@ -227,7 +228,7 @@ int delete(char *name){
 	strcpy(name_copy, name);
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 
-	parent_inumber = getinumber(parent_name, &lockstack);
+	parent_inumber = getinumber(parent_name, &lockstack, WRITE_LOCK);
 
 	if (parent_inumber == FAIL) {
 		printf("failed to delete %s, invalid parent dir %s\n",
@@ -282,6 +283,22 @@ int delete(char *name){
 	return SUCCESS;
 }
 
+void get_parents(char *pfrom, char* pto, int *pfrom_inumber, int *pto_inumber, lockstack_t *lockstack) {
+	int compare = strcmp(pfrom, pto);
+	// Locks the i-nodes acording to the lexicographic order of the paths to avoid deadlocks.
+	if (compare == 0) {
+		// As parents are the same, execute getinumber once.
+		*pfrom_inumber = getinumber(pfrom, lockstack, WRITE_LOCK);
+		*pto_inumber = *pfrom_inumber;
+	} else if (compare < 0) {
+		*pfrom_inumber = getinumber(pfrom, lockstack, WRITE_LOCK);
+		*pto_inumber = getinumber(pto, lockstack, WRITE_LOCK);
+	} else {
+		*pto_inumber = getinumber(pto, lockstack, WRITE_LOCK);
+		*pfrom_inumber = getinumber(pfrom, lockstack, WRITE_LOCK);
+	}
+}
+
 /*
  * Moves node to a different path.
  * Input:
@@ -307,52 +324,18 @@ int move(char *from, char *to) {
 	strcpy(parent_name_to_copy, to);
 	split_parent_child_from_path(parent_name_to_copy, &parent_name_to, &child_name_to);
 	
-	int compare = strcmp(parent_name_from, parent_name_to);
+	get_parents(parent_name_from, parent_name_to, &parent_inumber_from, &parent_inumber_to, &lockstack);
 	
-	// Locks the i-nodes acording to the lexicographic order of the paths to avoid deadlocks.
-	if (compare == 0) {
-		// As parents are the same, execute getinumber once.
-		parent_inumber_from = getinumber(parent_name_from, &lockstack);
-		if (parent_inumber_from == FAIL) {
-			printf("failed to move %s, invalid parent dir %s\n",
-					child_name_from, parent_name_from);
-			lockstack_clear(&lockstack);
-			return FAIL;
-		}
-		parent_inumber_to = parent_inumber_from;
-
-	} else if (compare < 0) {
-		parent_inumber_from = getinumber(parent_name_from, &lockstack);
-		if (parent_inumber_from == FAIL) {
-			printf("failed to move %s, invalid parent dir %s\n",
-					child_name_from, parent_name_from);
-			lockstack_clear(&lockstack);
-			return FAIL;
-		}
-		parent_inumber_to = getinumber(parent_name_to, &lockstack);
-		if (parent_inumber_to == FAIL) {
-			printf("failed to move %s, invalid parent dir %s\n",
+	if (parent_inumber_from == FAIL) {
+		printf("failed to move %s, invalid parent dir %s\n",
+				child_name_from, parent_name_from);
+		lockstack_clear(&lockstack);
+		return FAIL;
+	} else if (parent_inumber_to == FAIL) {
+		printf("failed to move %s, invalid parent dir %s\n",
 					child_name_from, parent_name_to);
-			lockstack_clear(&lockstack);
-			return FAIL;
-		}
-
-	} else {
-		parent_inumber_to = getinumber(parent_name_to, &lockstack);
-		if (parent_inumber_to == FAIL) {
-			printf("failed to move %s, invalid parent dir %s\n",
-					child_name_from, parent_name_to);
-			lockstack_clear(&lockstack);
-			return FAIL;
-		}
-
-		parent_inumber_from = getinumber(parent_name_from, &lockstack);
-		if (parent_inumber_from == FAIL) {
-			printf("failed to move %s, invalid parent dir %s\n",
-					child_name_from, parent_name_from);
-			lockstack_clear(&lockstack);
-			return FAIL;
-		}
+		lockstack_clear(&lockstack);
+		return FAIL;
 	}
 
 	inode_get(parent_inumber_from, &pfType, &pfdata, NO_LOCK, &lockstack);
@@ -373,7 +356,7 @@ int move(char *from, char *to) {
 		return FAIL;
 	}
 
-	if (compare == 0) {
+	if (parent_inumber_from == parent_inumber_to) {
 		ptdata = pfdata;
 	} else {
 		inode_get(parent_inumber_to, &ptType, &ptdata, NO_LOCK, &lockstack);
@@ -416,34 +399,14 @@ int move(char *from, char *to) {
  *     FAIL: otherwise
  */
 int lookup(char *name) {
-	char full_path[MAX_FILE_NAME];
-	char delim[] = "/";
-	char *saveptr;
-
 	lockstack_t lockstack; 
 	lockstack_init(&lockstack);
 
-	strcpy(full_path, name);
+	int inumber = getinumber(name, &lockstack, READ_LOCK);
 
-	/* start at root node */
-	int current_inumber = FS_ROOT;
-	
-	/* use for copy */
-	type nType;
-	union Data data;
-
-	/* get root inode data */
-	inode_get(current_inumber, &nType, &data, READ_LOCK, &lockstack);
-	
-	char *path = strtok_r(full_path, delim, &saveptr);
-
-	/* search for all sub nodes */
-	while (path != NULL && (current_inumber = lookup_sub_node(path, data.dirEntries)) != FAIL) {
-		inode_get(current_inumber, &nType, &data, READ_LOCK, &lockstack);
-		path = strtok_r(NULL, delim, &saveptr);
-	}
 	lockstack_clear(&lockstack);
-	return current_inumber;
+
+	return inumber;
 }
 
 

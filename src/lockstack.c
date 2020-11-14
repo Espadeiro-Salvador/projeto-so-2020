@@ -12,7 +12,6 @@ int lockstack_has(lockstack_t *stack, pthread_rwlock_t *lock) {
         if (node->lock == lock) {
             return 1;
         }
-        
         node = node->next;
     }
     
