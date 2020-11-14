@@ -5,3 +5,4 @@ c /b/f2.txt f
 c /a/c d
 c /a/c/f3.txt f
 m /a/c/f3.txt /f3.txt
+m /a/f1.txt /b/f1.txt

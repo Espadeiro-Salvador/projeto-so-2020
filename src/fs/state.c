@@ -123,8 +123,10 @@ int inode_get(int inumber, type *nType, union Data *data, locktype_t type, locks
     /* Used for testing synchronization speedup */
     insert_delay(DELAY);
 
-    if (type != NO_LOCK) {
-        lockstack_addlock(lockstack, &inode_table[inumber].lock, type);
+    if (type == READ_LOCK) {
+        lockstack_addreadlock(lockstack, &inode_table[inumber].lock);
+    } else if (type == WRITE_LOCK) {
+        lockstack_addwritelock(lockstack, &inode_table[inumber].lock);
     }
     
     if ((inumber < 0) || (inumber > INODE_TABLE_SIZE) || (inode_table[inumber].nodeType == T_NONE)) {

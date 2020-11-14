@@ -49,21 +49,27 @@ int lockstack_trylock(lockstack_t *stack, pthread_rwlock_t *lock) {
     return res == EBUSY;
 }
 
-void lockstack_addlock(lockstack_t *stack, pthread_rwlock_t *lock, locktype_t locktype) {
+void lockstack_addreadlock(lockstack_t *stack, pthread_rwlock_t *lock) {
     if (stack == NULL || lockstack_has(stack, lock)) {
         return;
     }
 
-    if (locktype == READ_LOCK) {
-        if (pthread_rwlock_rdlock(lock)) {
-            printf("Error: Read lock failed to lock\n");
-            exit(EXIT_FAILURE);
-        }
-    } else if (locktype == WRITE_LOCK) {
-        if (pthread_rwlock_wrlock(lock)) {
-            printf("Error: Write lock failed to lock\n");
-            exit(EXIT_FAILURE);
-        }
+    if (pthread_rwlock_rdlock(lock)) {
+        printf("Error: Read lock failed to lock\n");
+        exit(EXIT_FAILURE);
+    }
+
+    lockstack_push(stack, lock);
+}
+
+void lockstack_addwritelock(lockstack_t *stack, pthread_rwlock_t *lock) {
+    if (stack == NULL || lockstack_has(stack, lock)) {
+        return;
+    }
+    
+    if (pthread_rwlock_wrlock(lock)) {
+        printf("Error: Write lock failed to lock\n");
+        exit(EXIT_FAILURE);
     }
 
     lockstack_push(stack, lock);
