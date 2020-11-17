@@ -332,7 +332,7 @@ int move(char *from, char *to) {
 		lockstack_clear(&lockstack);
 		return FAIL;
 	} else if (parent_inumber_to == FAIL) {
-		printf("failed to move %s, invalid parent dir %s\n",
+		printf("failed to move %s, invalid dest dir %s\n",
 					child_name_from, parent_name_to);
 		lockstack_clear(&lockstack);
 		return FAIL;
@@ -360,8 +360,7 @@ int move(char *from, char *to) {
 		ptdata = pfdata;
 	} else {
 		inode_get(parent_inumber_to, &ptType, &ptdata, NO_LOCK, &lockstack);
-
-		if (pfType != T_DIRECTORY) {
+		if (ptType != T_DIRECTORY) {
 			printf("failed to move %s, dest %s is not a dir\n",
 							child_name_from, parent_name_to);
 			lockstack_clear(&lockstack);		
