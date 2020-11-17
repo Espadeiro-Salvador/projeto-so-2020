@@ -24,6 +24,9 @@ int lockstack_has(lockstack_t *stack, pthread_rwlock_t *lock) {
     return 0;
 }
 
+/*
+ * Adds a lock to the stack
+ */
 void lockstack_push(lockstack_t *stack, pthread_rwlock_t *lock) {
     if (stack == NULL) {
         return;
@@ -79,7 +82,7 @@ void lockstack_addreadlock(lockstack_t *stack, pthread_rwlock_t *lock) {
 
 /*
  * Adds a write lock to the stack if it does not contain that lock already,
- * locking that lock.
+ * locking that lock
  */
 void lockstack_addwritelock(lockstack_t *stack, pthread_rwlock_t *lock) {
     if (stack == NULL || lockstack_has(stack, lock)) {

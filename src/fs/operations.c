@@ -105,7 +105,16 @@ int lookup_sub_node(char *name, DirEntry *entries) {
 	return FAIL;
 }
 
-
+/*
+ * Gets inumber of node
+ * Input:
+ *  - name: path of node
+ *  - lockstack: reference to lockstack
+ * 	- locktype: type of lock to be used on the parent of the node
+ * Returns:
+ * 	- current_inumber: found node's inumber
+ *  - FAIL: if not found
+ */
 int getinumber(char *name, lockstack_t *lockstack, locktype_t locktype) {
 	char full_path[MAX_FILE_NAME];
 	char delim[] = "/";
@@ -283,11 +292,20 @@ int delete(char *name){
 	return SUCCESS;
 }
 
+/*
+ * Given two paths, fills pointers with the inumbers from the parent and the destination
+ * Input:
+ *  - pfrom: path of parent node
+ * 	- pto: path of destination node
+ * 	- pfrom_inumber: reference to int, to store parent inumber
+ * 	- pto_inumber: reference to int, to store destination inumber
+ * 	- lockstack: reference to lockstack
+ */
 void get_parents(char *pfrom, char* pto, int *pfrom_inumber, int *pto_inumber, lockstack_t *lockstack) {
 	int compare = strcmp(pfrom, pto);
-	// Locks the i-nodes acording to the lexicographic order of the paths to avoid deadlocks.
+	// Locks the i-nodes acording to the lexicographic order of the paths to avoid deadlocks
 	if (compare == 0) {
-		// As parents are the same, execute getinumber once.
+		// As parents are the same, execute getinumber once
 		*pfrom_inumber = getinumber(pfrom, lockstack, WRITE_LOCK);
 		*pto_inumber = *pfrom_inumber;
 	} else if (compare < 0) {
@@ -309,8 +327,8 @@ void get_parents(char *pfrom, char* pto, int *pfrom_inumber, int *pto_inumber, l
  */
 int move(char *from, char *to) {
 	int parent_inumber_from, parent_inumber_to, child_inumber;
-	char parent_name_from_copy[MAX_FILE_NAME];
-	char parent_name_to_copy[MAX_FILE_NAME];
+	char from_copy[MAX_FILE_NAME];
+	char to_copy[MAX_FILE_NAME];
 
 	char *parent_name_from, *parent_name_to, *child_name_from, *child_name_to;
 	type pfType, ptType;
@@ -319,13 +337,12 @@ int move(char *from, char *to) {
 	lockstack_t lockstack;
 	lockstack_init(&lockstack);
 	
-	strcpy(parent_name_from_copy, from);
-	split_parent_child_from_path(parent_name_from_copy, &parent_name_from, &child_name_from);
-	strcpy(parent_name_to_copy, to);
-	split_parent_child_from_path(parent_name_to_copy, &parent_name_to, &child_name_to);
+	strcpy(from_copy, from);
+	split_parent_child_from_path(from_copy, &parent_name_from, &child_name_from);
+	strcpy(to_copy, to);
+	split_parent_child_from_path(to_copy, &parent_name_to, &child_name_to);
 	
 	get_parents(parent_name_from, parent_name_to, &parent_inumber_from, &parent_inumber_to, &lockstack);
-	
 	if (parent_inumber_from == FAIL) {
 		printf("failed to move %s, invalid parent dir %s\n",
 				child_name_from, parent_name_from);
@@ -338,8 +355,8 @@ int move(char *from, char *to) {
 		return FAIL;
 	}
 
+	/* parent is already locked for writing */
 	inode_get(parent_inumber_from, &pfType, &pfdata, NO_LOCK, &lockstack);
-
 	if (pfType != T_DIRECTORY) {
 		printf("failed to move %s, parent %s is not a dir\n",
 		        child_name_from, parent_name_from);
@@ -348,7 +365,6 @@ int move(char *from, char *to) {
 	}
 
 	child_inumber = lookup_sub_node(child_name_from, pfdata.dirEntries);
-
 	if (child_inumber == FAIL) {
 		printf("could not move %s, does not exist in dir %s\n",
 		       child_name_from, parent_name_from);
@@ -359,6 +375,7 @@ int move(char *from, char *to) {
 	if (parent_inumber_from == parent_inumber_to) {
 		ptdata = pfdata;
 	} else {
+		/* parent is already locked for writing */
 		inode_get(parent_inumber_to, &ptType, &ptdata, NO_LOCK, &lockstack);
 		if (ptType != T_DIRECTORY) {
 			printf("failed to move %s, dest %s is not a dir\n",
@@ -375,11 +392,13 @@ int move(char *from, char *to) {
 		return FAIL;
 	}
 
+	/* add entry to destination folder */
 	if (dir_add_entry(parent_inumber_to, child_inumber, child_name_to) == FAIL) {
 		lockstack_clear(&lockstack);
 		return FAIL;
 	}
 
+	/* remove entry from parent folder that contained the node */
 	if (dir_reset_entry(parent_inumber_from, child_inumber) == FAIL) {
 		lockstack_clear(&lockstack);
 		return FAIL;
