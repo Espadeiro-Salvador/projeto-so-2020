@@ -14,4 +14,3 @@
 ### Perguntar:
 - Poder mudar nome das funções do main.c
 - Quando começar temporizador
-- Echos de erros a correr shell script

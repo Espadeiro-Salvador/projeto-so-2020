@@ -6,6 +6,7 @@
 #include <sys/time.h>
 #include <pthread.h>
 #include "fs/operations.h" 
+#include "queuesync.h"
 
 #define MAX_COMMANDS 10
 #define MAX_INPUT_SIZE 100
@@ -15,22 +16,12 @@ int numberThreads = 0;
 char inputCommands[MAX_COMMANDS][MAX_INPUT_SIZE];
 int numberCommands = 0;
 int insptr = 0, remptr = 0;
-int headQueue = 0;
-
-pthread_mutex_t mutex;
-pthread_cond_t canInsert, canRemove;
 
 void insertCommand(char* data) {
-    if (pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
-    }
+    lock_command_queue();
     
     while (numberCommands == MAX_COMMANDS) {
-        if (pthread_cond_wait(&canInsert, &mutex)) {
-            printf("Error: couldn't wait for cond signal\n");
-            exit(EXIT_FAILURE);
-        }
+        wait_for_consumer();
     }
 
     strcpy(inputCommands[insptr], data);
@@ -42,27 +33,15 @@ void insertCommand(char* data) {
     
     numberCommands++;
 
-    if (pthread_cond_signal(&canRemove)) {
-        printf("Error: Failed to send cond signal\n");
-        exit(EXIT_FAILURE);
-    }
-    if (pthread_mutex_unlock(&mutex)) {
-        printf("Error: Mutex failed to unlock\n");
-        exit(EXIT_FAILURE);
-    }
+    signal_consumer();
+    unlock_command_queue();
 }
 
 void removeCommand(char *command) {
-    if (pthread_mutex_lock(&mutex)) {
-        printf("Error: Mutex failed to lock\n");
-        exit(EXIT_FAILURE);
-    }
+    lock_command_queue();
     
     while (numberCommands == 0) {
-        if (pthread_cond_wait(&canRemove, &mutex)) {
-            printf("Error: couldn't wait for cond signal\n");
-            exit(EXIT_FAILURE);
-        }
+        wait_for_producer();
     }
     
     strcpy(command, inputCommands[remptr]);
@@ -74,14 +53,8 @@ void removeCommand(char *command) {
         
     numberCommands--;
     
-    if (pthread_cond_signal(&canInsert)) {
-        printf("Error: Failed to send cond signal\n");
-        exit(EXIT_FAILURE);
-    }
-    if (pthread_mutex_unlock(&mutex)) {
-        printf("Error: Mutex failed to unlock\n");
-        exit(EXIT_FAILURE);
-    }
+    signal_producer();
+    unlock_command_queue();
 }
 
 void errorParse(const char *command) {
@@ -216,40 +189,11 @@ void *threadFunction(void *arg) {
     return NULL;
 }
 
-void init_sync() {
-    if (pthread_mutex_init(&mutex, NULL)) {
-        printf("Error: Mutex failed to init\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if (pthread_cond_init(&canInsert, NULL)) {
-        printf("Error: Cond failed to init\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (pthread_cond_init(&canRemove, NULL)) {
-        printf("Error: Cond failed to init\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
-void destroy_sync() {
-        if (pthread_mutex_destroy(&mutex)) {
-        printf("Error: Mutex failed to destroy\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (pthread_cond_destroy(&canInsert)) {
-        printf("Error: Cond failed to destroy\n");
-        exit(EXIT_FAILURE);
-    }
-
-    if (pthread_cond_destroy(&canRemove)) {
-        printf("Error: Cond failed to destroy\n");
-        exit(EXIT_FAILURE);
-    }
-}
-
+/*
+ * Starts the timer
+ * Input:
+ *  - start: pointer to the start of the timer
+ */
 void start_timer(struct timeval *start) {
     if (gettimeofday(start, NULL) == -1) {
         printf("Error: could not get the time\n");
@@ -257,6 +201,12 @@ void start_timer(struct timeval *start) {
     }
 }
 
+/*
+ * Stops the timer
+ * Input:
+ *  - start: pointer to the start of the timer
+ * Returns: duration of the timer
+ */
 double stop_timer(struct timeval *start) {
     struct timeval stop;
 
@@ -270,6 +220,9 @@ double stop_timer(struct timeval *start) {
         (double) (stop.tv_sec - start->tv_sec);
 }
 
+/*
+ * Creates the number of threads given
+*/
 void create_thread_pool(pthread_t *tid, int numberThreads) {
     for(int i = 0; i < numberThreads; i++) {
         if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
@@ -279,6 +232,9 @@ void create_thread_pool(pthread_t *tid, int numberThreads) {
     }
 }
 
+/*
+ * Wait for the all the threads
+ */
 void wait_for_threads(pthread_t *tid, int numberThreads) {
     for (int i = 0; i < numberThreads; i++) {
         if (pthread_join(tid[i], NULL)) {
@@ -288,7 +244,10 @@ void wait_for_threads(pthread_t *tid, int numberThreads) {
     }
 }
 
-void print_output(char *name) {
+/*
+ * Prints the TecnicoFS tree in the output file.
+ */
+void print_tree(char *name) {
     FILE *outputFile;
 
     /* open output file */
@@ -308,6 +267,9 @@ void print_output(char *name) {
     }
 }
 
+/*
+ * Validates the number of threads and the number of args 
+ */
 void parse_args(int argc, char* argv[]) {
     if (argc != 4) {
         printf("Error: wrong number of arguments\n");
@@ -356,7 +318,7 @@ int main(int argc, char* argv[]) {
     /* wait for all the threads to finish running */
     wait_for_threads(tid, numberThreads);
     printf("TecnicoFS completed in %.4f seconds\n", stop_timer(&start));
-    print_output(argv[2]);
+    print_tree(argv[2]);
 
     /* release allocated memory */
     destroy_fs();
