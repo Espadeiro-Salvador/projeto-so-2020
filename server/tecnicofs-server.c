@@ -18,8 +18,8 @@ int setSocketAddress(char *path, struct sockaddr_un *addr) {
     return SUN_LEN(addr);
 }
 
-int processCommand() {
-    return -1;
+void *threadFunction() {
+    return NULL;
 }
 
 int main(int argc, char* argv[]) {
@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
         command[msglen] = '\0';
         printf("%s\n", command);
 
-        output = processCommand();
+        output = -1;
 
         sendto(serverfd, &output, sizeof(int), 0, (struct sockaddr *)&client_addr, addrlen);
     }
