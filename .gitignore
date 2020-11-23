@@ -1,6 +1,7 @@
 .DS_Store
 .idea/
 .ccls-cache/
+.vscode/
 
 outputs/
 
@@ -58,3 +59,5 @@ Mkfile.old
 dkms.conf
 
 tecnicofs
+tecnicofs-client
+tecnicofs-server
