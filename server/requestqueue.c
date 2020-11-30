@@ -74,20 +74,12 @@ void add_request(const char *command, struct sockaddr_un client_addr, socklen_t 
         mutex_unlock();
         return;
     }
-    
-    /*
-    request->command = malloc(sizeof(char) * (strlen(command) + 1));
-    if (request->command == NULL) {
-        free(node);
-        free(request);
-        mutex_unlock();
-        return;
-    }
-    */
+
     request->client_addr = client_addr;
     request->clientlen = clientlen;
     strcpy(request->command, command);
     node->request = request;
+    node->next = NULL;
 
     if (tail == NULL) {
         head = node;
@@ -101,7 +93,6 @@ void add_request(const char *command, struct sockaddr_un client_addr, socklen_t 
         fprintf(stderr, "Error: Failed to send cond signal\n");
         exit(EXIT_FAILURE);
     }
-    printf("ajdsdf\n");
     mutex_unlock();
 }
 
@@ -122,15 +113,12 @@ request_t *remove_request() {
         tail = NULL;
     }
 
+    free(tmp);
     mutex_unlock();
 
     return request;
 }
 
 void destroy_request(request_t *request) {
-    printf("BRUHH Command: %s\n", request->command);
-    printf("BRUHH: %d\n", request == NULL);
-    //free(request->command);
     free(request);
-    printf("ahkdsdjh\n");
 }

@@ -73,12 +73,9 @@ void *threadFunction() {
     while (1) {
         request_t *request = remove_request();
 
-        // if (request != NULL) {
-            int response = processCommand(request->command);
-            printf("BRUHH Response: %d\n", response);
-            int a = sendto(serverfd, &response, sizeof(int), 0, (struct sockaddr *) &request->client_addr, request->clientlen);
-            printf("BRUHH Response: %d\n", a);
-        // }
+        int response = processCommand(request->command);
+        sendto(serverfd, &response, sizeof(int), 0, (struct sockaddr *) &request->client_addr, request->clientlen);
+        free(request);
     }
 
     return NULL;
