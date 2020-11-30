@@ -22,20 +22,29 @@ int setSocketAddress(char *path, struct sockaddr_un *addr) {
     return SUN_LEN(addr);
 }
 
+int sendCommand(const char *command) {
+    return sendto(clientfd, command, strlen(command) + 1, 0, (struct sockaddr *)&serv_addr, servlen) <= 0;
+}
+
+int receiveResponse() {
+    int response;
+    if (recvfrom(clientfd, &response, sizeof(int), 0, NULL, NULL) > 0) {
+        return response;
+    }
+
+    return -1;
+}
+
 int tfsCreate(char *filename, char nodeType) {
     char command[MAX_INPUT_SIZE];
     if (sprintf(command, "c %s %c", filename, nodeType) < 0)
         return -1;
 
-    int res;
-    sendto(clientfd, command, strlen(command) + 1, 0, (struct sockaddr *)&serv_addr, servlen);
-    if (recvfrom(clientfd, &res, sizeof(int), 0, (struct sockaddr *)&serv_addr, &servlen) > 0) {
-        if (res == -1)
-            return -1;
-        return 0;
+    if (sendCommand(command)) {
+        return -1;
     }
 
-    return -1;
+    return receiveResponse();
 }
 
 int tfsDelete(char *path) {
@@ -43,14 +52,11 @@ int tfsDelete(char *path) {
     if (sprintf(command, "d %s", path) < 0)
         return -1;
     
-    int res;
-    sendto(clientfd, command, strlen(command) + 1, 0, (struct sockaddr *)&serv_addr, servlen);
-    if (recvfrom(clientfd, &res, sizeof(int), 0,(struct sockaddr *)&serv_addr, &servlen) > 0) {
-        if (res == -1) return -1;
-        return 0;
+    if (sendCommand(command)) {
+        return -1;
     }
 
-    return -1;
+    return receiveResponse();
 }
 
 int tfsMove(char *from, char *to) {
@@ -58,14 +64,11 @@ int tfsMove(char *from, char *to) {
     if (sprintf(command, "m %s %s", from, to) < 0)
         return -1;
     
-    int res;
-    sendto(clientfd, command, strlen(command) + 1, 0, (struct sockaddr *)&serv_addr, servlen);
-    if (recvfrom(clientfd, &res, sizeof(int), 0,(struct sockaddr *)&serv_addr, &servlen) > 0) {
-        if (res == -1) return -1;
-        return 0;
+    if (sendCommand(command)) {
+        return -1;
     }
 
-    return -1;
+    return receiveResponse();
 }
 
 int tfsLookup(char *path) {
@@ -73,14 +76,11 @@ int tfsLookup(char *path) {
     if (sprintf(command, "l %s", path) < 0)
         return -1;
 
-    int res;
-    sendto(clientfd, command, strlen(command) + 1, 0, (struct sockaddr *)&serv_addr, servlen);
-    if (recvfrom(clientfd, &res, sizeof(int), 0,(struct sockaddr *)&serv_addr, &servlen) > 0) {
-        if (res == -1) return -1;
-        return 0;
+    if(sendCommand(command)) {
+        return -1;
     }
 
-    return -1;
+    return receiveResponse();
 }
 
 int tfsMount(char *sockPath) {

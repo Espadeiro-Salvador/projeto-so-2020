@@ -12,11 +12,3 @@ int setSocketAddress(char *path, struct sockaddr_un *addr) {
 
     return SUN_LEN(addr);
 }
-
-int receive() {
-
-}
-
-int send() {
-    
-}

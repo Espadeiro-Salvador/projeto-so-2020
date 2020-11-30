@@ -12,8 +12,8 @@ LDFLAGS=-lm -lpthread
 
 all: tecnicofs-server
 
-tecnicofs-server: fs/state.o fs/operations.o tecnicofs-server.o fs/lockstack.o
-	$(LD) $(CFLAGS) $(LDFLAGS) -o tecnicofs-server fs/state.o fs/operations.o tecnicofs-server.o fs/lockstack.o
+tecnicofs-server: fs/state.o fs/operations.o tecnicofs-server.o fs/lockstack.o requestqueue.o
+	$(LD) $(CFLAGS) $(LDFLAGS) -o tecnicofs-server fs/state.o fs/operations.o requestqueue.o tecnicofs-server.o fs/lockstack.o
 
 fs/state.o: fs/state.c fs/state.h ../tecnicofs-api-constants.h
 	$(CC) $(CFLAGS) -o fs/state.o -c fs/state.c
@@ -24,7 +24,10 @@ fs/operations.o: fs/operations.c fs/operations.h fs/state.h ../tecnicofs-api-con
 fs/lockstack.o: fs/lockstack.c fs/lockstack.h ../tecnicofs-api-constants.h
 	$(CC) $(CFLAGS) -o fs/lockstack.o -c fs/lockstack.c
 
-tecnicofs-server.o: tecnicofs-server.c fs/operations.h fs/state.h ../tecnicofs-api-constants.h
+requestqueue.o: requestqueue.c requestqueue.h
+	$(CC) $(CFLAGS) -o requestqueue.o -c requestqueue.c
+
+tecnicofs-server.o: tecnicofs-server.c requestqueue.h fs/operations.h fs/state.h ../tecnicofs-api-constants.h
 	$(CC) $(CFLAGS) -o tecnicofs-server.o -c tecnicofs-server.c
 
 clean:

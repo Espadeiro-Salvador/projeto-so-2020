@@ -173,7 +173,6 @@ int create(char *name, type nodeType){
 	split_parent_child_from_path(name_copy, &parent_name, &child_name);
 	
 	parent_inumber = getinumber(parent_name, &lockstack, WRITE_LOCK);
-
 	if (parent_inumber == FAIL) {
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
