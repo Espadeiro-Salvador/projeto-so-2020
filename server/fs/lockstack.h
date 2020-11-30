@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include "tecnicofs-api-constants.h"
+
+#include "../../tecnicofs-api-constants.h"
 
 typedef struct lockstack_node_t {
     pthread_rwlock_t *lock;

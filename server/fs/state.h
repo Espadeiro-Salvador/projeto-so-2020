@@ -4,8 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include "../tecnicofs-api-constants.h"
-#include "../lockstack.h"
+
+#include "../../tecnicofs-api-constants.h"
+#include "lockstack.h"
 
 /* FS root inode number */
 #define FS_ROOT 0

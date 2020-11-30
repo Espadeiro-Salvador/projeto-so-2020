@@ -22,6 +22,18 @@ void *threadFunction() {
     return NULL;
 }
 
+/*
+ * Creates the number of threads given
+*/
+//void create_thread_pool(pthread_t *tid, int numberThreads) {
+//    for(int i = 0; i < numberThreads; i++) {
+//        if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
+//            printf("Error: could not create thread\n");
+//            exit(EXIT_FAILURE);
+//        }
+//    }
+//}
+
 int main(int argc, char* argv[]) {
     int serverfd;
     struct sockaddr_un server_addr;
@@ -42,6 +54,11 @@ int main(int argc, char* argv[]) {
     }
 
     /* PERMISSOES ??? */
+
+    /* create the tasks */
+    //int numberThreads = atoi(argv[1]);
+    //pthread_t tid[numberThreads];
+    //create_thread_pool(tid, atoi(argv[1]));
 
     while (1) {
         struct sockaddr_un client_addr;

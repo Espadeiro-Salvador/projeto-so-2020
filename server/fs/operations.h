@@ -1,7 +1,8 @@
 #ifndef FS_H
 #define FS_H
+
 #include "state.h"
-#include "../lockstack.h"
+#include "lockstack.h"
 
 void init_fs();
 void destroy_fs();
