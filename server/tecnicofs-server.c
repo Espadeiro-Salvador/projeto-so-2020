@@ -3,6 +3,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <strings.h>
 
 #include "fs/operations.h"
