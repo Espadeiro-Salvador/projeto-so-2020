@@ -12,5 +12,6 @@ int delete(char *name);
 int lookup(char *name);
 int move(char *from, char *to);
 void print_tecnicofs_tree(FILE *fp);
+int print_tree(char *outputfile);
 
 #endif /* FS_H */

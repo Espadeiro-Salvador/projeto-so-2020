@@ -28,9 +28,8 @@ int sendCommand(const char *command) {
 
 int receiveResponse() {
     int response;
-    if (recvfrom(clientfd, &response, sizeof(int), 0, NULL, NULL) > 0) {
+    if (recvfrom(clientfd, &response, sizeof(int), 0, NULL, NULL) > 0)
         return response;
-    }
 
     return -1;
 }
@@ -40,9 +39,8 @@ int tfsCreate(char *filename, char nodeType) {
     if (sprintf(command, "c %s %c", filename, nodeType) < 0)
         return -1;
 
-    if (sendCommand(command)) {
+    if (sendCommand(command))
         return -1;
-    }
 
     return receiveResponse();
 }
@@ -52,9 +50,8 @@ int tfsDelete(char *path) {
     if (sprintf(command, "d %s", path) < 0)
         return -1;
     
-    if (sendCommand(command)) {
+    if (sendCommand(command))
         return -1;
-    }
 
     return receiveResponse();
 }
@@ -64,9 +61,8 @@ int tfsMove(char *from, char *to) {
     if (sprintf(command, "m %s %s", from, to) < 0)
         return -1;
     
-    if (sendCommand(command)) {
+    if (sendCommand(command))
         return -1;
-    }
 
     return receiveResponse();
 }
@@ -76,9 +72,19 @@ int tfsLookup(char *path) {
     if (sprintf(command, "l %s", path) < 0)
         return -1;
 
-    if(sendCommand(command)) {
+    if(sendCommand(command))
         return -1;
-    }
+
+    return receiveResponse();
+}
+
+int tfsPrint(char *outputfile) {
+    char command[MAX_INPUT_SIZE];
+    if (sprintf(command, "p %s", outputfile) < 0)
+        return -1;
+
+    if(sendCommand(command))
+        return -1;
 
     return receiveResponse();
 }

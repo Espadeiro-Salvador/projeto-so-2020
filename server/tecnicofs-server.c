@@ -5,7 +5,6 @@
 #include <sys/socket.h>
 #include <strings.h>
 
-#include "requestqueue.h"
 #include "fs/operations.h"
 #include "../tecnicofs-api-constants.h"
 
@@ -36,6 +35,8 @@ int processCommand(const char *command) {
 
     switch (token) {
         case 'c':
+            if (numTokens != 3)
+                return response;
             switch (arg2[0]) {
                 case 'f':
                     printf("Create file: %s\n", arg1);
@@ -48,6 +49,8 @@ int processCommand(const char *command) {
             }
             break;
         case 'l': 
+            if (numTokens != 2)
+                return response;
             response = lookup(arg1);
 
             if (response >= 0)
@@ -57,25 +60,52 @@ int processCommand(const char *command) {
             break;
 
         case 'd':
+            if (numTokens != 2) 
+                return response;
             printf("Delete: %s\n", arg1);
             response = delete(arg1);
             break;
 
         case 'm':
+            if (numTokens != 3)
+                return response;
             printf("Move: %s to %s\n", arg1, arg2);
             response = move(arg1, arg2);
+            break;
+        case 'p':
+            if (numTokens != 2) 
+                return response;
+            response = print_tree(arg1);
             break;
     }
     return response;
 }
 
+int receiveCommand(char *command, struct sockaddr_un *client_addr, socklen_t *clientlen) {
+    int msglen = recvfrom(serverfd, command, sizeof(command) - 1, 0,
+                          (struct sockaddr *)client_addr, clientlen);
+    if (msglen > 0) {
+        command[msglen] = '\0';
+    }
+
+    return msglen <= 0;
+}
+
+int sendResponse(int response, struct sockaddr_un *client_addr, socklen_t clientlen) {
+    return sendto(serverfd, &response, sizeof(int), 0, (struct sockaddr *) client_addr, clientlen) <= 0;
+}
+
 void *threadFunction() {
     while (1) {
-        request_t *request = remove_request();
+        struct sockaddr_un client_addr;
+        socklen_t clientlen = sizeof(struct sockaddr_un);
 
-        int response = processCommand(request->command);
-        sendto(serverfd, &response, sizeof(int), 0, (struct sockaddr *) &request->client_addr, request->clientlen);
-        free(request);
+        char command[MAX_INPUT_SIZE];
+        if (receiveCommand(command, &client_addr, &clientlen))
+            continue;
+
+        int response = processCommand(command);
+        sendResponse(response, &client_addr, clientlen);
     }
 
     return NULL;
@@ -83,7 +113,7 @@ void *threadFunction() {
 
 /*
  * Creates the number of threads given
-*/
+ */
 void create_thread_pool(pthread_t *tid, int numberThreads) {
     for(int i = 0; i < numberThreads; i++) {
         if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
@@ -94,13 +124,18 @@ void create_thread_pool(pthread_t *tid, int numberThreads) {
 }
 
 /*
-void sendStatus(int serverfd, int *retvalue, struct sockaddr *client_addr, socklen_t addrlen) {
-    if (sendto(serverfd, &retvalue, sizeof(int), 0, (struct sockaddr *)client_addr, addrlen) < 0) {
-        
+ * Wait for the all the threads
+ */
+void wait_for_threads(pthread_t *tid, int numberThreads) {
+    for (int i = 0; i < numberThreads; i++) {
+        if (pthread_join(tid[i], NULL)) {
+            printf("Error: error waiting for thread\n");
+            exit(EXIT_FAILURE);
+        }
     }
 }
-*/
-int main(int argc, char* argv[]) {
+
+void init_server(char *path) {
     struct sockaddr_un server_addr;
     socklen_t addrlen;
 
@@ -110,37 +145,44 @@ int main(int argc, char* argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    unlink(argv[2]);
+    unlink(path);
 
-    addrlen = setSocketAddress(argv[2], &server_addr);
+    addrlen = setSocketAddress(path, &server_addr);
     if (bind(serverfd, (struct sockaddr *) &server_addr, addrlen) < 0) {
         fprintf(stderr, "Error: server could not bind socket\n");
         exit(EXIT_FAILURE);
     }
+}
 
-    /* PERMISSOES ??? */
-    init_fs();
-
-    /* create the tasks */
-    int numberThreads = atoi(argv[1]);
-    pthread_t tid[numberThreads];
-    create_thread_pool(tid, atoi(argv[1]));
-
-    while (1) {
-        struct sockaddr_un client_addr;
-        char command[MAX_INPUT_SIZE];
-        int msglen;
-
-        addrlen = sizeof(struct sockaddr_un);
-        msglen = recvfrom(serverfd, command, sizeof(command) - 1, 0,
-                          (struct sockaddr *)&client_addr, &addrlen);
-                          
-        if (msglen <= 0) 
-            continue;
-        command[msglen] = '\0';
-        printf("%s\n", command);
-        add_request(command, client_addr, addrlen);
+/*
+ * Validates the number of threads and the number of args 
+ */
+int parse_args(int argc, char* argv[]) {
+    if (argc != 3) {
+        printf("Error: wrong number of arguments\n");
+        exit(EXIT_FAILURE);
     }
+
+    /* get number of threads */
+    int numberThreads = atoi(argv[1]);
+    if (numberThreads < 1) {
+        printf("Error: can't run less than one thread\n");
+        exit(EXIT_FAILURE);
+    }
+
+    return numberThreads;
+}
+
+int main(int argc, char* argv[]) {
+    int numberThreads = parse_args(argc, argv);
+
+    init_server(argv[2]);
+    init_fs(); /* PERMISSOES ??? */
+
+    /* create the thread pool */
+    pthread_t tid[numberThreads];
+    create_thread_pool(tid, numberThreads);
+    wait_for_threads(tid, numberThreads);
 
     destroy_fs();
     

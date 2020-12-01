@@ -2,6 +2,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include "printsync.h"
+
+int modifyingTasks = 0;
+int printRequest = 0;
 
 /* Given a path, fills pointers with strings for the parent path and child
  * file name
@@ -11,7 +15,6 @@
  *  - child: reference to a char*, to store child file name
  */
 void split_parent_child_from_path(char * path, char ** parent, char ** child) {
-
 	int n_slashes = 0, last_slash_location = 0;
 	int len = strlen(path);
 
@@ -53,6 +56,8 @@ void init_fs() {
 		printf("failed to create node for tecnicofs root\n");
 		exit(EXIT_FAILURE);
 	}
+
+	init_printsync();
 }
 
 
@@ -61,6 +66,7 @@ void init_fs() {
  */
 void destroy_fs() {
 	inode_table_destroy();
+	destroy_printsync();
 }
 
 
@@ -151,6 +157,16 @@ int getinumber(char *name, lockstack_t *lockstack, locktype_t locktype) {
 	return current_inumber;
 }
 
+void start_modifying_task() {
+	printsync_lock();
+	modifyingTasks++;
+	while (printRequest != 0) {
+		wait_for_print_task();
+	}
+	modifyingTasks--;
+	printsync_unlock();
+}
+
 /*
  * Creates a new node given a path.
  * Input:
@@ -166,6 +182,8 @@ int create(char *name, type nodeType){
 	type pType;
 	union Data pdata;
 
+	start_modifying_task();
+
 	lockstack_t lockstack;
 	lockstack_init(&lockstack);
 
@@ -177,6 +195,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -186,6 +205,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -193,6 +213,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 	
@@ -202,6 +223,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -209,10 +231,13 @@ int create(char *name, type nodeType){
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
 	lockstack_clear(&lockstack);
+	signal_print_task();
+
 	return SUCCESS;
 }
 
@@ -229,6 +254,8 @@ int delete(char *name){
 	/* use for copy */
 	type pType, cType;
 	union Data pdata, cdata;
+
+	start_modifying_task();
 	
 	lockstack_t lockstack;
 	lockstack_init(&lockstack);
@@ -242,6 +269,7 @@ int delete(char *name){
 		printf("failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -252,6 +280,7 @@ int delete(char *name){
 		printf("failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -261,6 +290,7 @@ int delete(char *name){
 		printf("could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -270,6 +300,7 @@ int delete(char *name){
 		printf("could not delete %s: is a directory and not empty\n",
 		       name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -278,6 +309,7 @@ int delete(char *name){
 		printf("failed to delete %s from dir %s\n",
 		       child_name, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -285,9 +317,12 @@ int delete(char *name){
 		printf("could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
+
 	lockstack_clear(&lockstack);
+
 	return SUCCESS;
 }
 
@@ -333,6 +368,8 @@ int move(char *from, char *to) {
 	type pfType, ptType;
 	union Data pfdata, ptdata;
 
+	start_modifying_task();
+
 	lockstack_t lockstack;
 	lockstack_init(&lockstack);
 	
@@ -346,11 +383,13 @@ int move(char *from, char *to) {
 		printf("failed to move %s, invalid parent dir %s\n",
 				child_name_from, parent_name_from);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	} else if (parent_inumber_to == FAIL) {
 		printf("failed to move %s, invalid dest dir %s\n",
 					child_name_from, parent_name_to);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -360,6 +399,7 @@ int move(char *from, char *to) {
 		printf("failed to move %s, parent %s is not a dir\n",
 		        child_name_from, parent_name_from);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -368,6 +408,7 @@ int move(char *from, char *to) {
 		printf("could not move %s, does not exist in dir %s\n",
 		       child_name_from, parent_name_from);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
@@ -379,7 +420,8 @@ int move(char *from, char *to) {
 		if (ptType != T_DIRECTORY) {
 			printf("failed to move %s, dest %s is not a dir\n",
 							child_name_from, parent_name_to);
-			lockstack_clear(&lockstack);		
+			lockstack_clear(&lockstack);
+			signal_print_task();		
 			return FAIL;
 		}
 	}
@@ -388,22 +430,27 @@ int move(char *from, char *to) {
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name_from, parent_name_to);
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
 	/* add entry to destination folder */
 	if (dir_add_entry(parent_inumber_to, child_inumber, child_name_to) == FAIL) {
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
 	/* remove entry from parent folder that contained the node */
 	if (dir_reset_entry(parent_inumber_from, child_inumber) == FAIL) {
 		lockstack_clear(&lockstack);
+		signal_print_task();
 		return FAIL;
 	}
 
 	lockstack_clear(&lockstack);
+	signal_print_task();
+
 	return SUCCESS;
 }
 
@@ -434,4 +481,48 @@ int lookup(char *name) {
  */
 void print_tecnicofs_tree(FILE *fp){
 	inode_print_tree(fp, FS_ROOT, "");
+}
+
+/*
+ * Opens the output file and prints the tecnicofs tree.
+ * Input:
+ * 	- outputfile: path to the outputfile
+ * Returns: SUCCESS or FAIL
+ */
+int print_tree(char *outputfile) {
+	printsync_lock();
+	printRequest++;
+	while (modifyingTasks != 0) {
+		wait_for_modifying_tasks();
+	}
+
+    FILE *fp;
+
+    /* open output file */
+    fp = fopen(outputfile, "w");
+    if (!fp) {
+        fprintf(stderr, "Error: could not open output file\n");
+		printRequest--;
+		broadcast_modifying_tasks();
+		printsync_unlock();
+        return FAIL;
+    }
+
+    /* print tree */
+    print_tecnicofs_tree(fp);
+
+    /* close output file */
+    if (fclose(fp)) {
+        fprintf(stderr, "Error: could not close the output file\n");
+		printRequest--;
+		broadcast_modifying_tasks();
+		printsync_unlock();
+        return FAIL;
+    }
+
+	printRequest--;
+	broadcast_modifying_tasks();
+	printsync_unlock();
+
+	return SUCCESS;
 }
