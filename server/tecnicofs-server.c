@@ -39,11 +39,9 @@ int processCommand(const char *command) {
                 return response;
             switch (arg2[0]) {
                 case 'f':
-                    printf("Create file: %s\n", arg1);
                     response = create(arg1, T_FILE);
                     break;
                 case 'd':
-                    printf("Create directory: %s\n", arg1);
                     response = create(arg1, T_DIRECTORY);
                     break;
             }
@@ -52,24 +50,17 @@ int processCommand(const char *command) {
             if (numTokens != 2)
                 return response;
             response = lookup(arg1);
-
-            if (response >= 0)
-                printf("Search: %s found\n", arg1);
-            else
-                printf("Search: %s not found\n", arg1);
             break;
 
         case 'd':
             if (numTokens != 2) 
                 return response;
-            printf("Delete: %s\n", arg1);
             response = delete(arg1);
             break;
 
         case 'm':
             if (numTokens != 3)
                 return response;
-            printf("Move: %s to %s\n", arg1, arg2);
             response = move(arg1, arg2);
             break;
         case 'p':
@@ -82,7 +73,7 @@ int processCommand(const char *command) {
 }
 
 int receiveCommand(char *command, struct sockaddr_un *client_addr, socklen_t *clientlen) {
-    int msglen = recvfrom(serverfd, command, sizeof(command) - 1, 0,
+    int msglen = recvfrom(serverfd, command, sizeof(char) * (MAX_INPUT_SIZE - 1), 0,
                           (struct sockaddr *)client_addr, clientlen);
     if (msglen > 0) {
         command[msglen] = '\0';
@@ -177,7 +168,8 @@ int main(int argc, char* argv[]) {
     int numberThreads = parse_args(argc, argv);
 
     init_server(argv[2]);
-    init_fs(); /* PERMISSOES ??? */
+    init_fs(); 
+    /* PERMISSOES ??? */
 
     /* create the thread pool */
     pthread_t tid[numberThreads];

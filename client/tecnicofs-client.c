@@ -100,7 +100,7 @@ void *processInput() {
                 break;
             case 'p':
                 if(numTokens != 2)
-                    errorParse();
+                    errorParse();                
                 res = tfsPrint(arg1);
                 if (!res)
                   printf("Printed tecnicofs to: %s\n", arg1);

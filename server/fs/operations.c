@@ -159,11 +159,17 @@ int getinumber(char *name, lockstack_t *lockstack, locktype_t locktype) {
 
 void start_modifying_task() {
 	printsync_lock();
-	modifyingTasks++;
 	while (printRequest != 0) {
 		wait_for_print_task();
 	}
+	modifyingTasks++;
+	printsync_unlock();
+}
+
+void stop_modifying_task() {
+	printsync_lock();
 	modifyingTasks--;
+	signal_print_task();
 	printsync_unlock();
 }
 
@@ -195,7 +201,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s, invalid parent dir %s\n",
 		        name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -205,7 +211,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s, parent %s is not a dir\n",
 		        name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -213,7 +219,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 	
@@ -223,7 +229,7 @@ int create(char *name, type nodeType){
 		printf("failed to create %s in  %s, couldn't allocate inode\n",
 		        child_name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -231,12 +237,12 @@ int create(char *name, type nodeType){
 		printf("could not add entry %s in dir %s\n",
 		       child_name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
 	lockstack_clear(&lockstack);
-	signal_print_task();
+	stop_modifying_task();
 
 	return SUCCESS;
 }
@@ -269,7 +275,7 @@ int delete(char *name){
 		printf("failed to delete %s, invalid parent dir %s\n",
 		        child_name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -280,7 +286,7 @@ int delete(char *name){
 		printf("failed to delete %s, parent %s is not a dir\n",
 		        child_name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -290,7 +296,7 @@ int delete(char *name){
 		printf("could not delete %s, does not exist in dir %s\n",
 		       name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -300,7 +306,7 @@ int delete(char *name){
 		printf("could not delete %s: is a directory and not empty\n",
 		       name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -309,7 +315,7 @@ int delete(char *name){
 		printf("failed to delete %s from dir %s\n",
 		       child_name, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -317,11 +323,12 @@ int delete(char *name){
 		printf("could not delete inode number %d from dir %s\n",
 		       child_inumber, parent_name);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
 	lockstack_clear(&lockstack);
+	stop_modifying_task();
 
 	return SUCCESS;
 }
@@ -383,13 +390,13 @@ int move(char *from, char *to) {
 		printf("failed to move %s, invalid parent dir %s\n",
 				child_name_from, parent_name_from);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	} else if (parent_inumber_to == FAIL) {
 		printf("failed to move %s, invalid dest dir %s\n",
 					child_name_from, parent_name_to);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -399,7 +406,7 @@ int move(char *from, char *to) {
 		printf("failed to move %s, parent %s is not a dir\n",
 		        child_name_from, parent_name_from);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -408,7 +415,7 @@ int move(char *from, char *to) {
 		printf("could not move %s, does not exist in dir %s\n",
 		       child_name_from, parent_name_from);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
@@ -421,7 +428,7 @@ int move(char *from, char *to) {
 			printf("failed to move %s, dest %s is not a dir\n",
 							child_name_from, parent_name_to);
 			lockstack_clear(&lockstack);
-			signal_print_task();		
+			stop_modifying_task();		
 			return FAIL;
 		}
 	}
@@ -430,26 +437,26 @@ int move(char *from, char *to) {
 		printf("failed to create %s, already exists in dir %s\n",
 		       child_name_from, parent_name_to);
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
 	/* add entry to destination folder */
 	if (dir_add_entry(parent_inumber_to, child_inumber, child_name_to) == FAIL) {
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
 	/* remove entry from parent folder that contained the node */
 	if (dir_reset_entry(parent_inumber_from, child_inumber) == FAIL) {
 		lockstack_clear(&lockstack);
-		signal_print_task();
+		stop_modifying_task();
 		return FAIL;
 	}
 
 	lockstack_clear(&lockstack);
-	signal_print_task();
+	stop_modifying_task();
 
 	return SUCCESS;
 }
