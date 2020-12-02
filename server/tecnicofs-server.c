@@ -182,6 +182,7 @@ int main(int argc, char* argv[]) {
     wait_for_threads(tid, numberThreads);
 
     destroy_fs();
+    unlink(argv[2]);
     
     exit(EXIT_SUCCESS);
 }

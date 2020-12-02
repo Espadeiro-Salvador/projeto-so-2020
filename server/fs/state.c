@@ -14,7 +14,6 @@ void insert_delay(int cycles) {
     for (int i = 0; i < cycles; i++) {}
 }
 
-
 /*
  * Initializes the i-nodes table.
  */
@@ -23,7 +22,10 @@ void inode_table_init() {
         inode_table[i].nodeType = T_NONE;
         inode_table[i].data.dirEntries = NULL;
         inode_table[i].data.fileContents = NULL;
-        pthread_rwlock_init(&inode_table[i].lock, NULL);
+        if (pthread_rwlock_init(&inode_table[i].lock, NULL)) {
+            printf("Error: failed to init RWLock\n");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
@@ -38,7 +40,10 @@ void inode_table_destroy() {
 	    if (inode_table[i].data.dirEntries)
             free(inode_table[i].data.dirEntries);
         }
-        pthread_rwlock_destroy(&inode_table[i].lock);
+        if (pthread_rwlock_destroy(&inode_table[i].lock)) {
+            printf("Error: failed to destroy RWLock\n");
+            exit(EXIT_FAILURE);
+        }
     }
 }
 
