@@ -55,8 +55,6 @@ void init_fs() {
 		printf("failed to create node for tecnicofs root\n");
 		exit(EXIT_FAILURE);
 	}
-
-	init_printsync();
 }
 
 
@@ -65,7 +63,6 @@ void init_fs() {
  */
 void destroy_fs() {
 	inode_table_destroy();
-	destroy_printsync();
 }
 
 
@@ -154,22 +151,6 @@ int getinumber(char *name, lockstack_t *lockstack, locktype_t locktype) {
 	}
 
 	return current_inumber;
-}
-
-void start_modifying_task() {
-	printsync_lock();
-	while (printRequest != 0) {
-		wait_for_print_task();
-	}
-	modifyingTasks++;
-	printsync_unlock();
-}
-
-void stop_modifying_task() {
-	printsync_lock();
-	modifyingTasks--;
-	signal_print_task();
-	printsync_unlock();
 }
 
 /*
