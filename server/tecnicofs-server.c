@@ -144,11 +144,6 @@ void init_server(char *path) {
         fprintf(stderr, "Error: server could not bind socket\n");
         exit(EXIT_FAILURE);
     }
-
-    if (chmod(path, 00222) == -1) {
-        fprintf(stderr, "Error: can't change permissions of socket\n");
-        exit(EXIT_FAILURE);
-    }
 }
 
 /*
