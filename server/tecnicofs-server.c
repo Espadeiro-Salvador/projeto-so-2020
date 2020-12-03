@@ -5,12 +5,19 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <strings.h>
+#include <errno.h>
 
 #include "fs/operations.h"
 #include "../tecnicofs-api-constants.h"
 
 int serverfd;
 
+/*
+ * Initializes the unix socket address
+ * Input:
+ * - path: path to socket
+ * - addr: pointer to address
+ */
 int setSocketAddress(char *path, struct sockaddr_un *addr) {
     if (addr == NULL)
         return 0;
@@ -22,6 +29,11 @@ int setSocketAddress(char *path, struct sockaddr_un *addr) {
     return SUN_LEN(addr);
 }
 
+/*
+ * Runs command on tecnicofs
+ * Input:
+ * - command: command to run
+ */
 int processCommand(const char *command) {
     int response = FAIL;
 
@@ -73,6 +85,9 @@ int processCommand(const char *command) {
     return response;
 }
 
+/*
+ * Receives command from the client socket
+ */
 int receiveCommand(char *command, struct sockaddr_un *client_addr, socklen_t *clientlen) {
     int msglen = recvfrom(serverfd, command, sizeof(char) * (MAX_INPUT_SIZE - 1), 0,
                           (struct sockaddr *)client_addr, clientlen);
@@ -83,10 +98,16 @@ int receiveCommand(char *command, struct sockaddr_un *client_addr, socklen_t *cl
     return msglen <= 0;
 }
 
+/*
+ * Sends response to the client socket
+ */
 int sendResponse(int response, struct sockaddr_un *client_addr, socklen_t clientlen) {
     return sendto(serverfd, &response, sizeof(int), 0, (struct sockaddr *) client_addr, clientlen) <= 0;
 }
 
+/*
+ * Receives commands, processes them and sends the responses to the client socket
+ */
 void *threadFunction() {
     while (1) {
         struct sockaddr_un client_addr;
@@ -97,7 +118,8 @@ void *threadFunction() {
             continue;
 
         int response = processCommand(command);
-        sendResponse(response, &client_addr, clientlen);
+        if (sendResponse(response, &client_addr, clientlen))
+            continue;
     }
 
     return NULL;
@@ -109,7 +131,7 @@ void *threadFunction() {
 void create_thread_pool(pthread_t *tid, int numberThreads) {
     for(int i = 0; i < numberThreads; i++) {
         if (pthread_create(&tid[i], NULL, threadFunction, NULL) != 0) {
-            printf("Error: could not create thread\n");
+            fprintf(stderr, "Error: could not create thread\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -121,12 +143,15 @@ void create_thread_pool(pthread_t *tid, int numberThreads) {
 void wait_for_threads(pthread_t *tid, int numberThreads) {
     for (int i = 0; i < numberThreads; i++) {
         if (pthread_join(tid[i], NULL)) {
-            printf("Error: error waiting for thread\n");
+            fprintf(stderr, "Error: error waiting for thread\n");
             exit(EXIT_FAILURE);
         }
     }
 }
 
+/*
+ * Initializes and binds the server socket
+ */
 void init_server(char *path) {
     struct sockaddr_un server_addr;
     socklen_t addrlen;
@@ -137,7 +162,10 @@ void init_server(char *path) {
         exit(EXIT_FAILURE);
     }
 
-    unlink(path);
+    if (unlink(path) && errno != ENOENT) {
+        fprintf(stderr, "Error: cannot unlink socket path\n");
+        exit(EXIT_FAILURE);
+    }
 
     addrlen = setSocketAddress(path, &server_addr);
     if (bind(serverfd, (struct sockaddr *) &server_addr, addrlen) < 0) {
@@ -177,7 +205,10 @@ int main(int argc, char* argv[]) {
     wait_for_threads(tid, numberThreads);
 
     destroy_fs();
-    unlink(argv[2]);
+    if (unlink(argv[2]) && errno != ENOENT) {
+        fprintf(stderr, "Error: cannot unlink socket path\n");
+        exit(EXIT_FAILURE);
+    }
     
     exit(EXIT_SUCCESS);
 }

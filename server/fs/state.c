@@ -23,7 +23,7 @@ void inode_table_init() {
         inode_table[i].data.dirEntries = NULL;
         inode_table[i].data.fileContents = NULL;
         if (pthread_rwlock_init(&inode_table[i].lock, NULL)) {
-            printf("Error: failed to init RWLock\n");
+            fprintf(stderr, "Error: failed to init RWLock\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -41,7 +41,7 @@ void inode_table_destroy() {
             free(inode_table[i].data.dirEntries);
         }
         if (pthread_rwlock_destroy(&inode_table[i].lock)) {
-            printf("Error: failed to destroy RWLock\n");
+            fprintf(stderr, "Error: failed to destroy RWLock\n");
             exit(EXIT_FAILURE);
         }
     }

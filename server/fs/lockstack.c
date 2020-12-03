@@ -35,7 +35,7 @@ void lockstack_push(lockstack_t *stack, pthread_rwlock_t *lock) {
     lockstack_node_t *node = malloc(sizeof(lockstack_node_t));
         
     if (node == NULL) {
-        printf("Error: Failed to allocate lock stack node\n");
+        fprintf(stderr, "Error: Failed to allocate lock stack node\n");
         exit(EXIT_FAILURE);
     }
 
@@ -53,7 +53,7 @@ int lockstack_trylock(lockstack_t *stack, pthread_rwlock_t *lock) {
 
     int res = pthread_rwlock_trywrlock(lock);
     if (res != EBUSY && res != 0) {
-        printf("Error: Write lock failed to lock\n");
+        fprintf(stderr, "Error: Write lock failed to lock\n");
         exit(EXIT_FAILURE);
     } else if (res == EBUSY) {
         return 1;
@@ -73,7 +73,7 @@ void lockstack_addreadlock(lockstack_t *stack, pthread_rwlock_t *lock) {
     }
 
     if (pthread_rwlock_rdlock(lock)) {
-        printf("Error: Read lock failed to lock\n");
+        fprintf(stderr, "Error: Read lock failed to lock\n");
         exit(EXIT_FAILURE);
     }
 
@@ -90,7 +90,7 @@ void lockstack_addwritelock(lockstack_t *stack, pthread_rwlock_t *lock) {
     }
     
     if (pthread_rwlock_wrlock(lock)) {
-        printf("Error: Write lock failed to lock\n");
+        fprintf(stderr, "Error: Write lock failed to lock\n");
         exit(EXIT_FAILURE);
     }
 
@@ -109,7 +109,7 @@ void lockstack_pop(lockstack_t *stack) {
     stack->first = stack->first->next;
 
     if (pthread_rwlock_unlock(node->lock)) {
-        printf("Error: RWLock failed to unlock\n");
+        fprintf(stderr, "Error: RWLock failed to unlock\n");
         exit(EXIT_FAILURE);
     }
 

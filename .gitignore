@@ -4,6 +4,7 @@
 .vscode/
 
 outputs/
+zip/
 
 # Prerequisites
 *.d
