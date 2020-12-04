@@ -86,7 +86,7 @@ int processCommand(const char *command) {
 }
 
 /*
- * Receives command from the client socket
+ * Receives command from the client socket and returns 0 if it is successful.
  */
 int receiveCommand(char *command, struct sockaddr_un *client_addr, socklen_t *clientlen) {
     int msglen = recvfrom(serverfd, command, sizeof(char) * (MAX_INPUT_SIZE - 1), 0,
@@ -99,7 +99,7 @@ int receiveCommand(char *command, struct sockaddr_un *client_addr, socklen_t *cl
 }
 
 /*
- * Sends response to the client socket
+ * Sends response to the client socket and returns 0 if it is successful.
  */
 int sendResponse(int response, struct sockaddr_un *client_addr, socklen_t clientlen) {
     return sendto(serverfd, &response, sizeof(int), 0, (struct sockaddr *) client_addr, clientlen) <= 0;
@@ -114,12 +114,16 @@ void *threadFunction() {
         socklen_t clientlen = sizeof(struct sockaddr_un);
 
         char command[MAX_INPUT_SIZE];
-        if (receiveCommand(command, &client_addr, &clientlen))
+        if (receiveCommand(command, &client_addr, &clientlen)) {
+            printf("Error: failed to receive command\n");
             continue;
+        }
 
         int response = processCommand(command);
-        if (sendResponse(response, &client_addr, clientlen))
+        if (sendResponse(response, &client_addr, clientlen)) {
+            printf("Error: failed to send response\n");
             continue;
+        }
     }
 
     return NULL;
@@ -179,14 +183,14 @@ void init_server(char *path) {
  */
 int parse_args(int argc, char* argv[]) {
     if (argc != 3) {
-        printf("Error: wrong number of arguments\n");
+        fprintf(stderr, "Error: wrong number of arguments\n");
         exit(EXIT_FAILURE);
     }
 
     /* get number of threads */
     int numberThreads = atoi(argv[1]);
     if (numberThreads < 1) {
-        printf("Error: can't run less than one thread\n");
+        fprintf(stderr, "Error: can't run less than one thread\n");
         exit(EXIT_FAILURE);
     }
 
@@ -205,7 +209,7 @@ int main(int argc, char* argv[]) {
     wait_for_threads(tid, numberThreads);
 
     destroy_fs();
-    if (unlink(argv[2]) && errno != ENOENT) {
+    if (unlink(argv[2])) {
         fprintf(stderr, "Error: cannot unlink socket path\n");
         exit(EXIT_FAILURE);
     }

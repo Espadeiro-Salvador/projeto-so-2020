@@ -445,9 +445,11 @@ void print_tecnicofs_tree(FILE *fp){
 
 	lockstack_t lockstack;
 	lockstack_init(&lockstack);
-
+    
+	/* Locks the root for writting and prints the tree */
 	inode_get(FS_ROOT, &type, &data, WRITE_LOCK, &lockstack);
 	inode_print_tree(fp, FS_ROOT, "");
+	
 	lockstack_clear(&lockstack);
 }
 
